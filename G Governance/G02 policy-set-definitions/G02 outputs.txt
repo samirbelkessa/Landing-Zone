@@ -1,0 +1,101 @@
+Outputs:
+
+g01_policy_ids = {
+  "audit-backup-grs-cross-region" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-backup-grs-cross-region"
+  "audit-backup-grs-production" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-backup-grs-production"
+  "audit-backup-lrs-nonproduction" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-backup-lrs-nonproduction"
+  "audit-backup-lrs-sufficient" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-backup-lrs-sufficient"
+  "audit-budget-configured" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-budget-configured"
+  "audit-domain-services-required" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-domain-services-required"
+  "audit-firewall-premium" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-firewall-premium"
+  "audit-hub-vnet-australia-east" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-hub-vnet-australia-east"
+  "audit-la-archive-enabled" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-la-archive-enabled"
+  "audit-la-retention-minimum" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-la-retention-minimum"
+  "audit-only-sandbox-mode" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-only-sandbox-mode"
+  "audit-private-dns-hub-link" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-private-dns-hub-link"
+  "audit-private-endpoints-recommended" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-private-endpoints-recommended"
+  "audit-public-ip-via-appgw-frontdoor" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-public-ip-via-appgw-frontdoor"
+  "audit-route-to-firewall" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-route-to-firewall"
+  "audit-route-via-firewall" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-route-via-firewall"
+  "audit-sentinel-connectors" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-sentinel-connectors"
+  "audit-storage-public-access-nonprod" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-storage-public-access-nonprod"
+  "audit-vnet-peered-to-hub" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/audit-vnet-peered-to-hub"
+  "deny-all-resource-creation" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deny-all-resource-creation"
+  "deny-all-resource-modification" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deny-all-resource-modification"
+  "deny-appservice-public-access" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deny-appservice-public-access"
+  "deny-cosmos-public-access" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deny-cosmos-public-access"
+  "deny-expensive-resources" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deny-expensive-resources"
+  "deny-expensive-vm-skus" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deny-expensive-vm-skus"
+  "deny-sql-public-access" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deny-sql-public-access"
+  "deny-storage-public-access" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deny-storage-public-access"
+  "deny-without-expiration-tag" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deny-without-expiration-tag"
+  "deploy-auto-delete-expired" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deploy-auto-delete-expired"
+  "deploy-diagnostic-settings-la" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/deploy-diagnostic-settings-la"
+  "disabled-ddos-standard" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policyDefinitions/disabled-ddos-standard"
+}
+g01_summary = {
+  "caf_policies_enabled" = true
+  "management_group_id" = "/providers/Microsoft.Management/managementGroups/acme-au"
+  "total_policies" = 31
+}
+g02_all_initiative_ids = {
+  "caf-backup-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-backup-baseline"
+  "caf-corp-nonprod" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-corp-nonprod"
+  "caf-corp-prod" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-corp-prod"
+  "caf-cost-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-cost-baseline"
+  "caf-decommissioned" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-decommissioned"
+  "caf-governance-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-governance-baseline"
+  "caf-identity-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-identity-baseline"
+  "caf-monitoring-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-monitoring-baseline"
+  "caf-network-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-network-baseline"
+  "caf-online-nonprod" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-online-nonprod"
+  "caf-online-prod" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-online-prod"
+  "caf-sandbox" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-sandbox"
+  "caf-security-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-security-baseline"
+}
+g02_archetype_initiatives = {
+  "caf-corp-nonprod" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-corp-nonprod"
+  "caf-corp-prod" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-corp-prod"
+  "caf-decommissioned" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-decommissioned"
+  "caf-online-nonprod" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-online-nonprod"
+  "caf-online-prod" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-online-prod"
+  "caf-sandbox" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-sandbox"
+}
+g02_baseline_initiatives = {
+  "caf-backup-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-backup-baseline"
+  "caf-cost-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-cost-baseline"
+  "caf-governance-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-governance-baseline"
+  "caf-identity-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-identity-baseline"
+  "caf-monitoring-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-monitoring-baseline"
+  "caf-network-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-network-baseline"
+  "caf-security-baseline" = "/providers/Microsoft.Management/managementGroups/acme-au/providers/Microsoft.Authorization/policySetDefinitions/caf-security-baseline"
+}
+g02_summary = {
+  "baseline_initiatives" = [
+    "CAF Backup Baseline",
+    "CAF Cost Management Baseline",
+    "CAF Governance Baseline",
+    "CAF Identity Baseline",
+    "CAF Monitoring Baseline",
+    "CAF Network Baseline",
+    "CAF Security Baseline",
+  ]
+  "builtin_initiatives_enabled" = {
+    "azure_security_benchmark" = true
+    "iso_27001" = false
+    "nist_sp_800_53" = false
+    "vm_insights" = true
+  }
+  "caf_initiatives_count" = 13
+  "custom_initiatives_count" = 0
+  "deployed_archetypes" = [
+    "online-prod",
+    "online-nonprod",
+    "corp-prod",
+    "corp-nonprod",
+    "sandbox",
+    "decommissioned",
+  ]
+  "management_group_id" = "/providers/Microsoft.Management/managementGroups/acme-au"
+  "total_initiatives" = 13
+}

@@ -1,0 +1,70 @@
+Apply complete! Resources: 11 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+all_resource_names = {
+  "kv" = "kv-demo-dev-aueU3Lk"
+  "nsg" = "nsg-demo-dev-aue"
+  "rg" = "rg-demo-dev-aue"
+  "snet_app" = "snet-demo-app-dev-aue"
+  "snet_data" = "snet-demo-data-dev-aue"
+  "st" = "stdemodevauenxjo"
+  "vnet" = "vnet-demo-dev-aue"
+}
+key_vault_id = "/subscriptions/eee2e13c-1f0f-4e33-86cd-ae370d0a0604/resourceGroups/rg-demo-dev-aue/providers/Microsoft.KeyVault/vaults/kv-demo-dev-aueU3Lk"
+naming_results = {
+  "key_vault" = {
+    "is_valid" = true
+    "length" = 19
+    "max_length" = 24
+    "name" = "kv-demo-dev-aueU3Lk"
+    "note" = "Globally unique with random suffix"
+  }
+  "nsg" = {
+    "is_valid" = true
+    "length" = 16
+    "max_length" = 80
+    "name" = "nsg-demo-dev-aue"
+  }
+  "resource_group" = {
+    "is_valid" = true
+    "length" = 15
+    "max_length" = 90
+    "name" = "rg-demo-dev-aue"
+  }
+  "storage_account" = {
+    "is_valid" = true
+    "length" = 16
+    "max_length" = 24
+    "name" = "stdemodevauenxjo"
+    "note" = "Globally unique with random suffix"
+  }
+  "subnet_app" = {
+    "is_valid" = true
+    "length" = 21
+    "max_length" = 80
+    "name" = "snet-demo-app-dev-aue"
+  }
+  "subnet_data" = {
+    "is_valid" = true
+    "length" = 22
+    "max_length" = 80
+    "name" = "snet-demo-data-dev-aue"
+  }
+  "virtual_network" = {
+    "is_valid" = true
+    "length" = 17
+    "max_length" = 64
+    "length" = 17
+    "max_length" = 64
+    "name" = "vnet-demo-dev-aue"
+  }
+}
+nsg_id = "/subscriptions/eee2e13c-1f0f-4e33-86cd-ae370d0a0604/resourceGroups/rg-demo-dev-aue/providers/Microsoft.Network/networkSecurityGroups/nsg-demo-dev-aue"
+resource_group_id = "/subscriptions/eee2e13c-1f0f-4e33-86cd-ae370d0a0604/resourceGroups/rg-demo-dev-aue"
+storage_account_id = "/subscriptions/eee2e13c-1f0f-4e33-86cd-ae370d0a0604/resourceGroups/rg-demo-dev-aue/providers/Microsoft.Storage/storageAccounts/stdemodevauenxjo"
+subnet_ids = {
+  "app" = "/subscriptions/eee2e13c-1f0f-4e33-86cd-ae370d0a0604/resourceGroups/rg-demo-dev-aue/providers/Microsoft.Network/virtualNetworks/vnet-demo-dev-aue/subnets/snet-demo-app-dev-aue"
+  "data" = "/subscriptions/eee2e13c-1f0f-4e33-86cd-ae370d0a0604/resourceGroups/rg-demo-dev-aue/providers/Microsoft.Network/virtualNetworks/vnet-demo-dev-aue/subnets/snet-demo-data-dev-aue"
+}
+virtual_network_id = "/subscriptions/eee2e13c-1f0f-4e33-86cd-ae370d0a0604/resourceGroups/rg-demo-dev-aue/providers/Microsoft.Network/virtualNetworks/vnet-demo-dev-aue"
