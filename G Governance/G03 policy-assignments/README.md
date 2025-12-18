@@ -1,349 +1,365 @@
-# G03 - Policy Assignments
+# Module G03: Policy Assignments
 
 ## Description
 
-This module assigns Azure Policies and Policy Initiatives (Policy Sets) to Management Groups following the Cloud Adoption Framework (CAF) Landing Zone architecture. It implements a hierarchical policy assignment strategy where policies flow down from the root management group to child scopes.
+Ce module crée les **Azure Policy Assignments** pour le projet Landing Zone Azure CAF. Il permet d'assigner des policy definitions et policy set definitions (initiatives) à différents scopes : Management Groups, Subscriptions, et Resource Groups.
 
-### Key Features
+Le module gère automatiquement :
+- Les managed identities pour les policies DeployIfNotExists et Modify
+- Les role assignments nécessaires pour la remediation
+- Les assignments CAF préconfigurés pour le projet Australie
 
-- **Hierarchical Assignments**: Assigns policies at appropriate levels (Root, Platform, Landing Zones, Archetypes)
-- **CAF Alignment**: Implements CAF baseline policy assignments and archetype-specific policies
-- **Built-in Initiative Support**: Assigns Azure Security Benchmark, VM Insights, NIST, and ISO 27001 initiatives
-- **Managed Identity for Remediation**: Creates and configures identities for DeployIfNotExists and Modify effects
-- **Enforcement Mode Control**: Supports audit-only mode for brownfield migration
-- **Non-Compliance Messages**: Provides clear messages for policy violations
-- **Custom Assignments**: Allows additional custom policy assignments beyond CAF defaults
-
-## Prerequisites
-
-### Required Modules
-
-- **F01 - management-groups**: Management Group hierarchy must exist
-- **G01 - policy-definitions**: Custom policy definitions must be created
-- **G02 - policy-set-definitions**: Policy initiatives must be created
-
-### Required Permissions
-
-- `Microsoft.Authorization/policyAssignments/*` on target Management Groups
-- `Microsoft.ManagedIdentity/userAssignedIdentities/*` (if creating remediation identity)
-- `Microsoft.Authorization/roleAssignments/*` for remediation role assignments
-
-## Usage
-
-### Basic Example
-
-```hcl
-module "policy_assignments" {
-  source = "./modules/policy-assignments"
-
-  # Required: Management Group hierarchy from F01
-  management_group_hierarchy = {
-    root           = module.management_groups.root_mg_id
-    platform       = module.management_groups.platform_mg_id
-    management     = module.management_groups.management_mg_id
-    connectivity   = module.management_groups.connectivity_mg_id
-    identity       = module.management_groups.identity_mg_id
-    landing_zones  = module.management_groups.landing_zones_mg_id
-    corp_prod      = module.management_groups.corp_prod_mg_id
-    corp_nonprod   = module.management_groups.corp_nonprod_mg_id
-    online_prod    = module.management_groups.online_prod_mg_id
-    online_nonprod = module.management_groups.online_nonprod_mg_id
-    sandbox        = module.management_groups.sandbox_mg_id
-    decommissioned = module.management_groups.decommissioned_mg_id
-  }
-
-  # Required: Initiative IDs from G02
-  initiative_ids = module.policy_set_definitions.all_initiative_ids
-
-  # Optional: Log Analytics workspace for monitoring policies
-  log_analytics_workspace_id = module.log_analytics.workspace_id
-
-  tags = {
-    Environment = "Production"
-    Owner       = "Platform Team"
-    CostCenter  = "IT-001"
-    Application = "Landing Zone"
-  }
-}
-```
-
-### Advanced Example (Australia Project)
-
-```hcl
-module "policy_assignments" {
-  source = "./modules/policy-assignments"
-
-  # Management Group hierarchy
-  management_group_hierarchy = {
-    root           = module.management_groups.root_mg_id
-    platform       = module.management_groups.platform_mg_id
-    management     = module.management_groups.management_mg_id
-    connectivity   = module.management_groups.connectivity_mg_id
-    identity       = module.management_groups.identity_mg_id
-    landing_zones  = module.management_groups.landing_zones_mg_id
-    corp_prod      = module.management_groups.corp_prod_mg_id
-    corp_nonprod   = module.management_groups.corp_nonprod_mg_id
-    online_prod    = module.management_groups.online_prod_mg_id
-    online_nonprod = module.management_groups.online_nonprod_mg_id
-    sandbox        = module.management_groups.sandbox_mg_id
-    decommissioned = module.management_groups.decommissioned_mg_id
-  }
-
-  # Initiative IDs from G02
-  initiative_ids = module.policy_set_definitions.all_initiative_ids
-
-  # Assignment configuration
-  deploy_root_assignments          = true
-  deploy_platform_assignments      = true
-  deploy_landing_zone_assignments  = true
-  deploy_decommissioned_assignments = true
-
-  # Built-in initiative assignments
-  assign_azure_security_benchmark = true
-  assign_vm_insights              = true
-  assign_nist_sp_800_53           = false  # Optional compliance
-  assign_iso_27001                = false  # Optional compliance
-
-  # Australia-specific parameters
-  allowed_locations = ["australiaeast", "australiasoutheast"]
-  
-  log_analytics_workspace_id = module.log_analytics.workspace_id
-  log_retention_days         = 90  # 90 days interactive
-
-  required_tags = ["Environment", "Owner", "CostCenter", "Application"]
-
-  allowed_vm_skus_sandbox = [
-    "Standard_B1s",
-    "Standard_B1ms",
-    "Standard_B2s",
-    "Standard_B2ms",
-    "Standard_D2s_v3",
-    "Standard_D2s_v4",
-    "Standard_D2s_v5"
-  ]
-
-  backup_geo_redundancy_regions = {
-    "australiaeast" = "australiasoutheast"
-  }
-
-  # Managed identity for remediation
-  create_remediation_identity         = true
-  remediation_identity_name           = "policy-remediation-identity"
-  remediation_identity_resource_group = "rg-management-aue-001"
-  remediation_identity_location       = "australiaeast"
-
-  # Non-compliance message prefix
-  non_compliance_message_prefix = "[CAF Australia]"
-
-  tags = {
-    Environment = "Production"
-    Owner       = "platform-team@contoso.com"
-    CostCenter  = "IT-PLATFORM-001"
-    Application = "Landing Zone"
-  }
-}
-```
-
-### Brownfield Migration (Audit-Only Mode)
-
-```hcl
-module "policy_assignments" {
-  source = "./modules/policy-assignments"
-
-  management_group_hierarchy = module.management_groups.all_mg_ids
-  initiative_ids             = module.policy_set_definitions.all_initiative_ids
-
-  # Enable audit-only mode for all assignments during migration
-  enforcement_mode_override = "DoNotEnforce"
-
-  # ... other configuration
-}
-```
-
-### Custom Policy Assignments
-
-```hcl
-module "policy_assignments" {
-  source = "./modules/policy-assignments"
-
-  management_group_hierarchy = module.management_groups.all_mg_ids
-  initiative_ids             = module.policy_set_definitions.all_initiative_ids
-
-  # Add custom assignments beyond CAF defaults
-  custom_policy_assignments = {
-    "custom-network-restriction" = {
-      policy_definition_id = "/providers/Microsoft.Authorization/policyDefinitions/xxx"
-      management_group_id  = module.management_groups.landing_zones_mg_id
-      display_name         = "Custom Network Restriction"
-      description          = "Custom policy for network restrictions"
-      enforcement_mode     = "Default"
-      parameters = {
-        allowedSubnets = ["10.0.0.0/8"]
-      }
-      non_compliance_message = "Resource violates custom network restrictions."
-      identity_type          = "None"
-    }
-    
-    "deploy-custom-diagnostic" = {
-      policy_definition_id = module.policy_definitions.policy_definition_ids["custom-diagnostic"]
-      management_group_id  = module.management_groups.platform_mg_id
-      display_name         = "Deploy Custom Diagnostic Settings"
-      description          = "Deploy diagnostic settings to custom destination"
-      enforcement_mode     = "Default"
-      parameters = {
-        workspaceId = module.log_analytics.workspace_id
-      }
-      identity_type = "SystemAssigned"  # Required for DeployIfNotExists
-    }
-  }
-}
-```
-
-## Policy Assignment Strategy
-
-### Hierarchy and Inheritance
+## Architecture
 
 ```
-Root MG ─────────────────── Global policies (locations, tags, monitoring baseline)
-├── Platform MG ─────────── Security benchmark, VM Insights, network baseline
-│   ├── Management ──────── Log retention, Sentinel connectors
-│   ├── Connectivity ────── NSG requirements, hub validation
-│   └── Identity ────────── Managed identity requirements
-├── Landing Zones MG ────── Key Vault policies, backup baseline, cost baseline
-│   ├── Online-Prod ─────── WAF required, HTTPS enforced, TLS 1.2, GRS backup
-│   ├── Online-NonProd ──── HTTPS enforced, LRS backup acceptable
-│   ├── Corp-Prod ───────── Deny public IPs, private endpoints required, GRS
-│   ├── Corp-NonProd ────── Deny public IPs, private endpoints recommended
-│   └── Sandbox ─────────── VM SKU limits, expiration tag required, audit mode
-└── Decommissioned MG ───── Deny all resource creation/modification
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     Root Management Group                                    │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ Assignments:                                                            ││
+│  │  • CAF Governance Baseline (Deny/Modify)                               ││
+│  │  • CAF Security Baseline (Audit/Deny)                                  ││
+│  │  • Azure Security Benchmark (Audit)                                    ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+│              │                                                               │
+│    ┌─────────┴─────────┬─────────────────┐                                  │
+│    ▼                   ▼                 ▼                                  │
+│  Platform          Landing Zones    Decommissioned                          │
+│  ┌───────────┐     ┌─────────────┐   ┌────────────┐                        │
+│  │Network    │     │Backup       │   │Deny All    │                        │
+│  │Identity   │     │Cost         │   │            │                        │
+│  │Monitoring │     │VM Insights  │   │            │                        │
+│  └───────────┘     └─────────────┘   └────────────┘                        │
+│                           │                                                 │
+│         ┌─────────────────┼─────────────────┐                              │
+│         ▼                 ▼                 ▼                              │
+│    Online-Prod       Corp-Prod         Sandbox                             │
+│    ┌──────────┐     ┌──────────┐     ┌──────────┐                         │
+│    │WAF/HTTPS │     │Private EP│     │SKU Limits│                         │
+│    │GRS Backup│     │No Public │     │Expiration│                         │
+│    └──────────┘     └──────────┘     └──────────┘                         │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Assignment Details by Scope
+## Prérequis
 
-| Scope | Policies | Effect |
-|-------|----------|--------|
-| **Root** | Allowed locations, Required tags, AMA installed, Defender enabled | Deny/Audit |
-| **Platform** | Azure Security Benchmark, VM Insights, Security baseline | Audit/Deploy |
-| **Connectivity** | Subnet NSG, Hub validation, Firewall routing | Audit |
-| **Landing Zones** | Key Vault (RBAC, soft delete, purge), NSG flow logs, Backup/Cost baseline | Audit/Deploy |
-| **Online-Prod** | WAF required, HTTPS, TLS 1.2, GRS backup | Deny/Audit |
-| **Online-NonProd** | HTTPS required, LRS backup acceptable | Deny/Audit |
-| **Corp-Prod** | Deny public IPs, Private endpoints required, GRS backup | Deny |
-| **Corp-NonProd** | Deny public IPs, Private endpoints recommended | Deny/Audit |
-| **Sandbox** | VM SKU limits, Expiration tag, Audit-only mode | Deny/Audit |
-| **Decommissioned** | Deny all creation/modification | Deny |
+- **Module F01** (management-groups) : Hiérarchie MG déployée
+- **Module G01** (policy-definitions) : Policies custom créées
+- **Module G02** (policy-set-definitions) : Initiatives créées
+- **Permissions** : `Resource Policy Contributor` + `User Access Administrator` (pour role assignments)
 
-## Inputs
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| management_group_hierarchy | Map of MG names to resource IDs from F01 | `map(string)` | n/a | yes |
-| initiative_ids | Map of initiative names to IDs from G02 | `map(string)` | n/a | yes |
-| deploy_root_assignments | Deploy assignments at root MG | `bool` | `true` | no |
-| deploy_platform_assignments | Deploy assignments at Platform MG | `bool` | `true` | no |
-| deploy_landing_zone_assignments | Deploy assignments at Landing Zones | `bool` | `true` | no |
-| deploy_decommissioned_assignments | Deploy deny-all at Decommissioned MG | `bool` | `true` | no |
-| assign_azure_security_benchmark | Assign Azure Security Benchmark | `bool` | `true` | no |
-| assign_vm_insights | Assign VM Insights initiative | `bool` | `true` | no |
-| assign_nist_sp_800_53 | Assign NIST SP 800-53 R5 (compliance) | `bool` | `false` | no |
-| assign_iso_27001 | Assign ISO 27001:2013 (compliance) | `bool` | `false` | no |
-| allowed_locations | Allowed Azure regions | `list(string)` | `["australiaeast", "australiasoutheast"]` | no |
-| log_analytics_workspace_id | LA workspace ID for monitoring policies | `string` | `""` | no |
-| log_retention_days | Minimum log retention (30-730) | `number` | `90` | no |
-| required_tags | Required tags on resource groups | `list(string)` | `["Environment", "Owner", "CostCenter", "Application"]` | no |
-| allowed_vm_skus_sandbox | Allowed VM SKUs in Sandbox | `list(string)` | B-series, D2s | no |
-| backup_geo_redundancy_regions | Primary to DR region mapping | `map(string)` | `{"australiaeast" = "australiasoutheast"}` | no |
-| create_remediation_identity | Create managed identity for remediation | `bool` | `true` | no |
-| remediation_identity_name | Name of remediation identity | `string` | `"policy-remediation-identity"` | no |
-| remediation_identity_resource_group | RG for remediation identity | `string` | `""` | no |
-| remediation_identity_location | Location for remediation identity | `string` | `"australiaeast"` | no |
-| custom_policy_assignments | Custom policy assignments | `map(object)` | `{}` | no |
-| enforcement_mode_override | Override enforcement mode globally | `string` | `null` | no |
-| non_compliance_message_prefix | Prefix for non-compliance messages | `string` | `"[CAF Landing Zone]"` | no |
-| assignment_metadata | Additional metadata for assignments | `map(string)` | `{createdBy = "Terraform"}` | no |
-| tags | Tags for resources created by module | `map(string)` | `{}` | no |
-
-## Outputs
-
-| Name | Description |
-|------|-------------|
-| policy_assignment_ids | Map of policy assignment names to IDs |
-| initiative_assignment_ids | Map of initiative assignment names to IDs |
-| custom_assignment_ids | Map of custom assignment names to IDs |
-| all_assignment_ids | Map of all assignment names to IDs |
-| assignments_by_scope | Assignments organized by management group |
-| policy_assignments_detailed | Detailed info about policy assignments |
-| initiative_assignments_detailed | Detailed info about initiative assignments |
-| remediation_identity | Remediation managed identity details |
-| system_assigned_identities | Map of assignments to their identity principal IDs |
-| role_assignments | Role assignment IDs for remediation |
-| assignments_requiring_remediation | Assignments with DeployIfNotExists/Modify effects |
-| summary | Summary of all assignments |
-| assignments_for_exemptions | Structured output for G04 exemptions |
-| archetype_assignments_status | Status of archetype-specific assignments |
-
-## Managed Identity for Remediation
-
-Policies with `DeployIfNotExists` or `Modify` effects require a managed identity with appropriate permissions to remediate non-compliant resources. This module:
-
-1. **Creates a User Assigned Managed Identity** (optional) for consistent remediation across assignments
-2. **Assigns System Assigned Identities** to specific policy assignments that require remediation
-3. **Grants Role Assignments** at the root management group scope:
-   - Contributor (for general remediation)
-   - Monitoring Contributor (for monitoring policies)
-   - Log Analytics Contributor (for diagnostic settings)
-
-### Triggering Remediation
-
-After policy assignments are created, non-compliant resources can be remediated:
-
-```bash
-# Create a remediation task for a specific assignment
-az policy remediation create \
-  --name "remediate-monitoring-baseline" \
-  --policy-assignment "/providers/Microsoft.Management/managementGroups/root/providers/Microsoft.Authorization/policyAssignments/root-monitoring-bas" \
-  --management-group "root"
-```
-
-## Dependencies
+## Dépendances
 
 ```
 F01 management-groups
  └── G01 policy-definitions
       └── G02 policy-set-definitions
-           └── G03 policy-assignments (this module)
+           └── G03 policy-assignments (ce module)
                 └── G04 policy-exemptions
+```
+
+## Usage
+
+### Basic Usage - Manual Assignments
+
+```hcl
+module "policy_assignments" {
+  source = "./modules/policy-assignments"
+
+  management_group_assignments = {
+    "root-allowed-locations" = {
+      management_group_id       = "/providers/Microsoft.Management/managementGroups/contoso-root"
+      policy_definition_id      = "/providers/Microsoft.Authorization/policyDefinitions/e56962a6-4747-49cd-b67b-bf8b01975c4c"
+      display_name              = "Allowed Locations - Australia"
+      description               = "Restricts resource deployment to Australia regions."
+      enforce                   = true
+      parameters                = jsonencode({
+        listOfAllowedLocations = { value = ["australiaeast", "australiasoutheast"] }
+      })
+      identity_type             = "None"
+    }
+  }
+
+  tags = {
+    Environment = "Production"
+    Owner       = "Platform Team"
+  }
+}
+```
+
+### CAF Landing Zone Deployment
+
+```hcl
+module "policy_assignments" {
+  source = "./modules/policy-assignments"
+
+  # Enable CAF automatic assignments
+  deploy_caf_assignments = true
+
+  # Management Group IDs from F01
+  caf_management_groups = {
+    root           = module.management_groups.root_mg_id
+    platform       = module.management_groups.platform_mg_id
+    connectivity   = module.management_groups.connectivity_mg_id
+    identity       = module.management_groups.identity_mg_id
+    management     = module.management_groups.management_mg_id
+    landing_zones  = module.management_groups.landing_zones_mg_id
+    online_prod    = module.management_groups.online_prod_mg_id
+    online_nonprod = module.management_groups.online_nonprod_mg_id
+    corp_prod      = module.management_groups.corp_prod_mg_id
+    corp_nonprod   = module.management_groups.corp_nonprod_mg_id
+    sandbox        = module.management_groups.sandbox_mg_id
+    decommissioned = module.management_groups.decommissioned_mg_id
+  }
+
+  # Initiative IDs from G02
+  caf_initiative_ids = module.policy_set_definitions.all_initiative_ids
+
+  # Built-in initiative IDs from G02
+  caf_builtin_initiative_ids = module.policy_set_definitions.builtin_initiatives_for_assignment
+
+  # Parameters
+  default_location           = "australiaeast"
+  log_analytics_workspace_id = module.log_analytics.workspace_id
+  allowed_regions            = ["australiaeast", "australiasoutheast"]
+  required_tags              = ["Environment", "Owner", "CostCenter", "Application"]
+
+  # Role assignments for remediation
+  create_role_assignments = true
+
+  tags = {
+    Environment = "Production"
+    Owner       = "Platform Team"
+    CostCenter  = "IT-PLATFORM-001"
+    Application = "Azure Landing Zone"
+  }
+}
+```
+
+### Mixed CAF and Custom Assignments
+
+```hcl
+module "policy_assignments" {
+  source = "./modules/policy-assignments"
+
+  # Enable CAF assignments
+  deploy_caf_assignments = true
+  caf_management_groups  = { ... }
+  caf_initiative_ids     = module.policy_set_definitions.all_initiative_ids
+
+  # Add custom assignments alongside CAF
+  management_group_assignments = {
+    "custom-sql-encryption" = {
+      management_group_id      = "/providers/Microsoft.Management/managementGroups/contoso-corp-prod"
+      policy_definition_id     = "/providers/Microsoft.Authorization/policyDefinitions/..."
+      display_name             = "Require SQL TDE"
+      enforce                  = true
+      identity_type            = "SystemAssigned"
+      location                 = "australiaeast"
+    }
+  }
+
+  # Subscription-level assignments
+  subscription_assignments = {
+    "sub-connectivity-defender" = {
+      subscription_id          = "/subscriptions/00000000-0000-0000-0000-000000000001"
+      policy_set_definition_id = "/providers/Microsoft.Authorization/policySetDefinitions/..."
+      display_name             = "Enable Defender for Cloud"
+      enforce                  = true
+      identity_type            = "SystemAssigned"
+      location                 = "australiaeast"
+    }
+  }
+}
+```
+
+### Assignment with Non-Compliance Message
+
+```hcl
+module "policy_assignments" {
+  source = "./modules/policy-assignments"
+
+  management_group_assignments = {
+    "corp-deny-public-storage" = {
+      management_group_id       = "/providers/Microsoft.Management/managementGroups/contoso-corp"
+      policy_definition_id      = module.policy_definitions.policy_definition_ids["deny-storage-public-access"]
+      display_name              = "Deny Public Storage Access"
+      enforce                   = true
+      identity_type             = "None"
+      non_compliance_message    = <<-EOT
+        Storage accounts must not allow public blob access.
+        
+        Resolution:
+        1. Set 'allowBlobPublicAccess' to false
+        2. Use Private Endpoints for access
+        3. Contact Platform Team if public access is required (exemption needed)
+        
+        Reference: https://wiki.company.com/storage-security
+      EOT
+    }
+  }
+}
+```
+
+## Inputs
+
+| Name | Description | Type | Required | Default |
+|------|-------------|------|----------|---------|
+| `management_group_assignments` | Map of policy assignments at MG scope | `map(object)` | No | `{}` |
+| `subscription_assignments` | Map of policy assignments at subscription scope | `map(object)` | No | `{}` |
+| `resource_group_assignments` | Map of policy assignments at RG scope | `map(object)` | No | `{}` |
+| `deploy_caf_assignments` | Deploy CAF automatic assignments | `bool` | No | `false` |
+| `caf_management_groups` | Map of CAF MG IDs | `map(string)` | No* | `{}` |
+| `caf_initiative_ids` | Map of CAF initiative IDs from G02 | `map(string)` | No* | `{}` |
+| `caf_builtin_initiative_ids` | Map of built-in initiative IDs | `map(string)` | No | `{}` |
+| `create_role_assignments` | Create role assignments for managed identities | `bool` | No | `true` |
+| `role_definition_ids` | Map of role IDs per assignment | `map(list(string))` | No | `{}` |
+| `default_role_definition_id` | Default role for identities | `string` | No | Contributor |
+| `default_location` | Default location for identities | `string` | No | `australiaeast` |
+| `log_analytics_workspace_id` | LA workspace ID for monitoring | `string` | No | `""` |
+| `allowed_regions` | Allowed Azure regions | `list(string)` | No | `["australiaeast", "australiasoutheast"]` |
+| `required_tags` | Required tag names | `list(string)` | No | `["Environment", "Owner", "CostCenter", "Application"]` |
+| `tags` | Tags for resources | `map(string)` | No | `{}` |
+
+\* Required when `deploy_caf_assignments = true`
+
+### Assignment Object Structure
+
+```hcl
+{
+  management_group_id       = string           # Full MG resource ID
+  policy_definition_id      = optional(string) # Policy definition ID (exclusive with set)
+  policy_set_definition_id  = optional(string) # Initiative ID (exclusive with definition)
+  display_name              = string           # Human-readable name
+  description               = optional(string) # Description
+  enforce                   = optional(bool)   # true = enforce, false = audit only
+  parameters                = optional(string) # JSON-encoded parameters
+  non_compliance_message    = optional(string) # Message for non-compliant resources
+  identity_type             = optional(string) # None, SystemAssigned, UserAssigned
+  identity_ids              = optional(list)   # User Assigned MI IDs
+  location                  = optional(string) # Location for MI
+  not_scopes                = optional(list)   # Excluded scopes
+  metadata                  = optional(string) # Additional metadata
+}
+```
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| `mg_assignment_ids` | Map of MG assignment names to IDs |
+| `mg_assignments` | Full MG assignment attributes |
+| `mg_assignment_identities` | Map of MG assignments to principal IDs |
+| `sub_assignment_ids` | Map of subscription assignment names to IDs |
+| `sub_assignments` | Full subscription assignment attributes |
+| `rg_assignment_ids` | Map of RG assignment names to IDs |
+| `rg_assignments` | Full RG assignment attributes |
+| `role_assignment_ids` | Map of role assignment IDs |
+| `all_assignment_ids` | All assignments combined |
+| `all_assignment_principal_ids` | All assignments with identities |
+| `caf_assignment_ids` | CAF automatic assignment IDs |
+| `caf_assignments_by_scope` | CAF assignments organized by scope |
+| `summary` | Deployment summary |
+| `remediation_commands` | Azure CLI remediation commands |
+
+## CAF Automatic Assignment Mapping
+
+| Assignment | Scope | Initiative | Effect |
+|------------|-------|------------|--------|
+| root-governance-baseline | Root | caf-governance-baseline | Deny/Modify |
+| root-security-baseline | Root | caf-security-baseline | Audit/Deny |
+| root-azure-security-benchmark | Root | Azure Security Benchmark | Audit |
+| connectivity-network-baseline | Connectivity | caf-network-baseline | Audit |
+| identity-baseline | Identity | caf-identity-baseline | Audit |
+| management-monitoring-baseline | Management | caf-monitoring-baseline | DINE |
+| platform-vm-insights | Platform | VM Insights | DINE |
+| lz-backup-baseline | Landing Zones | caf-backup-baseline | Audit |
+| lz-cost-baseline | Landing Zones | caf-cost-baseline | Audit |
+| lz-vm-insights | Landing Zones | VM Insights | DINE |
+| online-prod-initiative | Online-Prod | caf-online-prod | Deny/Audit |
+| online-nonprod-initiative | Online-NonProd | caf-online-nonprod | Audit |
+| corp-prod-initiative | Corp-Prod | caf-corp-prod | Deny |
+| corp-nonprod-initiative | Corp-NonProd | caf-corp-nonprod | Deny/Audit |
+| sandbox-initiative | Sandbox | caf-sandbox | Audit/Deny |
+| decommissioned-initiative | Decommissioned | caf-decommissioned | Deny |
+
+## Managed Identity Requirements
+
+Policies with the following effects require a managed identity:
+- **DeployIfNotExists (DINE)**: Deploys resources when non-compliant
+- **Modify**: Modifies existing resources
+
+The module automatically:
+1. Creates a SystemAssigned identity when specified
+2. Creates role assignments for the identity at the assignment scope
+3. Grants Contributor role by default (configurable)
+
+## Remediation
+
+After deployment, DeployIfNotExists policies require remediation to apply to existing resources:
+
+```bash
+# View remediation commands
+terraform output remediation_commands
+
+# Run remediation (example)
+az policy remediation create \
+  --name "remediate-management-monitoring-baseline" \
+  --policy-assignment "/providers/Microsoft.Management/managementGroups/contoso-management/providers/Microsoft.Authorization/policyAssignments/management-monitori" \
+  --management-group "contoso-management"
+```
+
+## Brownfield Migration
+
+For existing environments with ~70 policies:
+
+1. **Audit First**: Set `enforce = false` on all new assignments
+2. **Review Compliance**: Check Azure Policy Compliance dashboard
+3. **Create Exemptions**: Use G04 module for legacy resources
+4. **Gradual Enforcement**: Enable enforcement progressively
+
+```hcl
+# Start in audit mode
+management_group_assignments = {
+  "corp-deny-public-storage" = {
+    ...
+    enforce = false  # Audit only during migration
+  }
+}
+```
+
+## Validation
+
+```bash
+# Format
+terraform fmt -recursive
+
+# Validate
+terraform validate
+
+# Plan
+terraform plan -var-file="terraform.tfvars"
+
+# Apply
+terraform apply -var-file="terraform.tfvars"
+
+# Check assignments
+az policy assignment list --scope "/providers/Microsoft.Management/managementGroups/contoso-root" --output table
 ```
 
 ## Notes
 
-### Brownfield Migration
+### Assignment Name Limit
+Azure Policy assignment names are limited to 24 characters. The module automatically truncates names.
 
-For brownfield environments with existing resources:
+### Identity Location
+Managed identities require a location. When `identity_type` is not "None", a location must be provided.
 
-1. Set `enforcement_mode_override = "DoNotEnforce"` initially
-2. Review compliance reports in Azure Policy
-3. Remediate non-compliant resources
-4. Gradually enable enforcement per scope (Sandbox → NonProd → Prod)
-5. Remove the override when ready
+### Not Scopes
+Use `not_scopes` to exclude specific subscriptions or resource groups from an assignment.
 
-### Policy Inheritance
+### Compliance State
+Policy compliance state is not available immediately after assignment. Allow up to 24 hours for initial evaluation.
 
-- Policies assigned at parent scopes automatically apply to children
-- More restrictive policies at child scopes override less restrictive parent policies
-- Use exemptions (G04) for legitimate exceptions
+## License
 
-### Assignment Name Limitations
-
-Azure Policy assignment names are limited to 24 characters. This module automatically truncates names while maintaining uniqueness.
-
-### Compliance Reporting
-
-Built-in initiatives (Azure Security Benchmark, NIST, ISO) are assigned in `DoNotEnforce` mode by default for compliance reporting without blocking resources.
-
-## Related Modules
-
-- [F01 - Management Groups](../management-groups/README.md)
-- [G01 - Policy Definitions](../policy-definitions/README.md)
-- [G02 - Policy Set Definitions](../policy-set-definitions/README.md)
-- [G04 - Policy Exemptions](../policy-exemptions/README.md)
+Proprietary - Internal use only

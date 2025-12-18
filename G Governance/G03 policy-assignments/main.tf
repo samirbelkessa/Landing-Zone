@@ -1,131 +1,38 @@
-################################################################################
-# Main - Policy Assignments (G03)
-# Assigns policies and initiatives to Management Groups
-################################################################################
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║ Main - Policy Assignments (G03)                                               ║
+# ║ Creates Azure Policy Assignments at various scopes                            ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MANAGED IDENTITY FOR REMEDIATION
+# Management Group Policy Assignments
 # ══════════════════════════════════════════════════════════════════════════════
 
-# User Assigned Managed Identity for policy remediation (DeployIfNotExists, Modify)
-resource "azurerm_user_assigned_identity" "remediation" {
-  count = var.create_remediation_identity && var.remediation_identity_resource_group != "" ? 1 : 0
-
-  name                = var.remediation_identity_name
-  resource_group_name = var.remediation_identity_resource_group
-  location            = var.remediation_identity_location
-
-  tags = local.tags
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# POLICY ASSIGNMENTS (Individual Policies)
-# ══════════════════════════════════════════════════════════════════════════════
-
-resource "azurerm_management_group_policy_assignment" "policies" {
-  for_each = local.flattened_policy_assignments
+resource "azurerm_management_group_policy_assignment" "assignments" {
+  for_each = local.all_mg_assignments
 
   name                 = substr(each.key, 0, 24) # Max 24 characters
-  display_name         = each.value.display_name
-  description          = each.value.description
-  management_group_id  = each.value.scope
-  policy_definition_id = each.value.policy_definition_id
-  enforcement_mode     = each.value.enforcement_mode
-  parameters           = each.value.parameters
-  metadata             = jsonencode(local.base_metadata)
-
-  # Non-compliance message
-  dynamic "non_compliance_message" {
-    for_each = each.value.non_compliance_message != null ? [1] : []
-    content {
-      content = each.value.non_compliance_message
-    }
-  }
-
-  # System Assigned Managed Identity for remediation
-  dynamic "identity" {
-    for_each = each.value.identity_type == "SystemAssigned" ? [1] : []
-    content {
-      type = "SystemAssigned"
-    }
-  }
-
-  # User Assigned Managed Identity for remediation
-  dynamic "identity" {
-    for_each = each.value.identity_type == "UserAssigned" && var.create_remediation_identity ? [1] : []
-    content {
-      type         = "UserAssigned"
-      identity_ids = [azurerm_user_assigned_identity.remediation[0].id]
-    }
-  }
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# INITIATIVE (POLICY SET) ASSIGNMENTS
-# ══════════════════════════════════════════════════════════════════════════════
-
-resource "azurerm_management_group_policy_assignment" "initiatives" {
-  for_each = local.flattened_initiative_assignments
-
-  name                     = substr(each.key, 0, 24) # Max 24 characters
-  display_name             = each.value.display_name
-  description              = each.value.description
-  management_group_id      = each.value.scope
-  policy_definition_id     = each.value.policy_set_definition_id
-  enforcement_mode         = each.value.enforcement_mode
-  parameters               = each.value.parameters
-  metadata                 = jsonencode(local.base_metadata)
-
-  # Non-compliance message
-  dynamic "non_compliance_message" {
-    for_each = each.value.non_compliance_message != null ? [1] : []
-    content {
-      content = each.value.non_compliance_message
-    }
-  }
-
-  # System Assigned Managed Identity for remediation
-  dynamic "identity" {
-    for_each = each.value.identity_type == "SystemAssigned" ? [1] : []
-    content {
-      type = "SystemAssigned"
-    }
-  }
-
-  # User Assigned Managed Identity for remediation
-  dynamic "identity" {
-    for_each = each.value.identity_type == "UserAssigned" && var.create_remediation_identity ? [1] : []
-    content {
-      type         = "UserAssigned"
-      identity_ids = [azurerm_user_assigned_identity.remediation[0].id]
-    }
-  }
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CUSTOM POLICY ASSIGNMENTS
-# ══════════════════════════════════════════════════════════════════════════════
-
-resource "azurerm_management_group_policy_assignment" "custom" {
-  for_each = var.custom_policy_assignments
-
-  name                 = substr(each.key, 0, 24)
-  display_name         = each.value.display_name
-  description          = each.value.description
   management_group_id  = each.value.management_group_id
-  enforcement_mode     = coalesce(var.enforcement_mode_override, each.value.enforcement_mode)
-  metadata             = jsonencode(local.base_metadata)
+  policy_definition_id = each.value.policy_set_definition_id != null ? each.value.policy_set_definition_id : each.value.policy_definition_id
+  
+  display_name = each.value.display_name
+  description  = each.value.description != "" ? each.value.description : null
+  enforce      = each.value.enforce
+  
+  parameters = each.value.parameters
+  metadata   = each.value.metadata != null ? each.value.metadata : local.standard_metadata
+  
+  not_scopes = each.value.not_scopes
 
-  # Either policy definition or policy set definition
-  policy_definition_id = coalesce(
-    each.value.policy_definition_id,
-    each.value.policy_set_definition_id
-  )
+  location = each.value.identity_type != "None" ? coalesce(each.value.location, var.default_location) : null
 
-  # Parameters
-  parameters = length(each.value.parameters) > 0 ? jsonencode({
-    for k, v in each.value.parameters : k => { value = v }
-  }) : null
+  # Managed Identity configuration
+  dynamic "identity" {
+    for_each = each.value.identity_type != "None" ? [1] : []
+    content {
+      type         = each.value.identity_type
+      identity_ids = each.value.identity_type == "UserAssigned" ? each.value.identity_ids : null
+    }
+  }
 
   # Non-compliance message
   dynamic "non_compliance_message" {
@@ -135,91 +42,142 @@ resource "azurerm_management_group_policy_assignment" "custom" {
     }
   }
 
-  # Managed Identity
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Subscription Policy Assignments
+# ══════════════════════════════════════════════════════════════════════════════
+
+resource "azurerm_subscription_policy_assignment" "assignments" {
+  for_each = var.subscription_assignments
+
+  name            = substr(each.key, 0, 24)
+  subscription_id = each.value.subscription_id
+  policy_definition_id = each.value.policy_set_definition_id != null ? each.value.policy_set_definition_id : each.value.policy_definition_id
+  
+  display_name = each.value.display_name
+  description  = each.value.description != "" ? each.value.description : null
+  enforce      = each.value.enforce
+  
+  parameters = each.value.parameters
+  metadata   = each.value.metadata != null ? each.value.metadata : local.standard_metadata
+  
+  not_scopes = each.value.not_scopes
+
+  location = each.value.identity_type != "None" ? coalesce(each.value.location, var.default_location) : null
+
   dynamic "identity" {
-    for_each = each.value.identity_type == "SystemAssigned" ? [1] : []
+    for_each = each.value.identity_type != "None" ? [1] : []
     content {
-      type = "SystemAssigned"
+      type         = each.value.identity_type
+      identity_ids = each.value.identity_type == "UserAssigned" ? each.value.identity_ids : null
     }
   }
 
-  dynamic "identity" {
-    for_each = each.value.identity_type == "UserAssigned" && var.create_remediation_identity ? [1] : []
+  dynamic "non_compliance_message" {
+    for_each = each.value.non_compliance_message != null ? [1] : []
     content {
-      type         = "UserAssigned"
-      identity_ids = [azurerm_user_assigned_identity.remediation[0].id]
+      content = each.value.non_compliance_message
     }
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ROLE ASSIGNMENTS FOR REMEDIATION IDENTITIES
+# Resource Group Policy Assignments
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Role assignment for System Assigned Managed Identities at Root MG
-# Grants Contributor role for remediation tasks (DeployIfNotExists)
-resource "azurerm_role_assignment" "policy_remediation_contributor" {
-  for_each = {
-    for k, v in merge(
-      azurerm_management_group_policy_assignment.policies,
-      azurerm_management_group_policy_assignment.initiatives
-    ) : k => v if try(v.identity[0].type, "") == "SystemAssigned"
+resource "azurerm_resource_group_policy_assignment" "assignments" {
+  for_each = var.resource_group_assignments
+
+  name              = substr(each.key, 0, 24)
+  resource_group_id = each.value.resource_group_id
+  policy_definition_id = each.value.policy_set_definition_id != null ? each.value.policy_set_definition_id : each.value.policy_definition_id
+  
+  display_name = each.value.display_name
+  description  = each.value.description != "" ? each.value.description : null
+  enforce      = each.value.enforce
+  
+  parameters = each.value.parameters
+  metadata   = each.value.metadata != null ? each.value.metadata : local.standard_metadata
+  
+  not_scopes = each.value.not_scopes
+
+  location = each.value.identity_type != "None" ? coalesce(each.value.location, var.default_location) : null
+
+  dynamic "identity" {
+    for_each = each.value.identity_type != "None" ? [1] : []
+    content {
+      type         = each.value.identity_type
+      identity_ids = each.value.identity_type == "UserAssigned" ? each.value.identity_ids : null
+    }
   }
 
-  scope                = local.mg_root
-  role_definition_name = "Contributor"
-  principal_id         = each.value.identity[0].principal_id
-}
-
-# Additional role assignment for monitoring-related policies
-resource "azurerm_role_assignment" "policy_remediation_monitoring_contributor" {
-  for_each = {
-    for k, v in merge(
-      azurerm_management_group_policy_assignment.policies,
-      azurerm_management_group_policy_assignment.initiatives
-    ) : k => v if try(v.identity[0].type, "") == "SystemAssigned" && can(regex("monitoring|vm-insights|diagnostic", k))
+  dynamic "non_compliance_message" {
+    for_each = each.value.non_compliance_message != null ? [1] : []
+    content {
+      content = each.value.non_compliance_message
+    }
   }
 
-  scope                = local.mg_root
-  role_definition_name = "Monitoring Contributor"
-  principal_id         = each.value.identity[0].principal_id
-}
-
-# Log Analytics Contributor for Log Analytics related policies
-resource "azurerm_role_assignment" "policy_remediation_log_analytics_contributor" {
-  for_each = {
-    for k, v in merge(
-      azurerm_management_group_policy_assignment.policies,
-      azurerm_management_group_policy_assignment.initiatives
-    ) : k => v if try(v.identity[0].type, "") == "SystemAssigned" && can(regex("log-analytics|diagnostic|monitoring", k))
+  lifecycle {
+    create_before_destroy = true
   }
-
-  scope                = local.mg_root
-  role_definition_name = "Log Analytics Contributor"
-  principal_id         = each.value.identity[0].principal_id
-}
-
-# Role assignment for User Assigned Managed Identity
-resource "azurerm_role_assignment" "user_identity_contributor" {
-  count = var.create_remediation_identity && var.remediation_identity_resource_group != "" ? 1 : 0
-
-  scope                = local.mg_root
-  role_definition_name = "Contributor"
-  principal_id         = azurerm_user_assigned_identity.remediation[0].principal_id
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TIME DELAY FOR ROLE PROPAGATION
+# Role Assignments for Policy Managed Identities
 # ══════════════════════════════════════════════════════════════════════════════
+# DeployIfNotExists and Modify policies require role assignments for their
+# managed identities to perform remediation tasks.
 
-# Wait for role assignments to propagate before remediation can work
-resource "time_sleep" "role_propagation" {
-  depends_on = [
-    azurerm_role_assignment.policy_remediation_contributor,
-    azurerm_role_assignment.policy_remediation_monitoring_contributor,
-    azurerm_role_assignment.policy_remediation_log_analytics_contributor,
-    azurerm_role_assignment.user_identity_contributor
-  ]
+# Role assignments for Management Group policy assignments
+resource "azurerm_role_assignment" "mg_policy_identity" {
+  for_each = var.create_role_assignments ? {
+    for k, v in local.mg_assignments_with_identity : k => v
+    if v.identity_type == "SystemAssigned"
+  } : {}
 
-  create_duration = "60s"
+  scope                = each.value.management_group_id
+  role_definition_id   = lookup(var.role_definition_ids, each.key, [var.default_role_definition_id])[0]
+  principal_id         = azurerm_management_group_policy_assignment.assignments[each.key].identity[0].principal_id
+  skip_service_principal_aad_check = true
+
+  depends_on = [azurerm_management_group_policy_assignment.assignments]
+}
+
+# Role assignments for Subscription policy assignments
+resource "azurerm_role_assignment" "sub_policy_identity" {
+  for_each = var.create_role_assignments ? {
+    for k, v in local.sub_assignments_with_identity : k => v
+    if v.identity_type == "SystemAssigned"
+  } : {}
+
+  scope                = each.value.subscription_id
+  role_definition_id   = lookup(var.role_definition_ids, each.key, [var.default_role_definition_id])[0]
+  principal_id         = azurerm_subscription_policy_assignment.assignments[each.key].identity[0].principal_id
+  skip_service_principal_aad_check = true
+
+  depends_on = [azurerm_subscription_policy_assignment.assignments]
+}
+
+# Role assignments for Resource Group policy assignments
+resource "azurerm_role_assignment" "rg_policy_identity" {
+  for_each = var.create_role_assignments ? {
+    for k, v in local.rg_assignments_with_identity : k => v
+    if v.identity_type == "SystemAssigned"
+  } : {}
+
+  scope                = each.value.resource_group_id
+  role_definition_id   = lookup(var.role_definition_ids, each.key, [var.default_role_definition_id])[0]
+  principal_id         = azurerm_resource_group_policy_assignment.assignments[each.key].identity[0].principal_id
+  skip_service_principal_aad_check = true
+
+  depends_on = [azurerm_resource_group_policy_assignment.assignments]
 }

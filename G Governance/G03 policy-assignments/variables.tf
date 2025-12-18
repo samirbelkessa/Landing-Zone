@@ -1,247 +1,289 @@
-################################################################################
-# Variables - Policy Assignments (G03)
-# Assigns policies and initiatives to Management Groups with contextual parameters
-################################################################################
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║ Variables - Policy Assignments (G03)                                          ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 # ══════════════════════════════════════════════════════════════════════════════
 # REQUIRED VARIABLES
 # ══════════════════════════════════════════════════════════════════════════════
 
-variable "management_group_hierarchy" {
-  description = "Map of management group names to their resource IDs from module F01. Keys should match CAF hierarchy: root, platform, management, connectivity, identity, landing_zones, corp_prod, corp_nonprod, online_prod, online_nonprod, sandbox, decommissioned."
-  type        = map(string)
-
-  validation {
-    condition     = contains(keys(var.management_group_hierarchy), "root")
-    error_message = "The management_group_hierarchy must contain at least a 'root' management group ID."
-  }
-}
-
-variable "initiative_ids" {
-  description = "Map of initiative (policy set) names to their resource IDs from module G02. Should include baseline initiatives (caf-security-baseline, caf-network-baseline, etc.) and archetype initiatives (caf-online-prod, caf-corp-prod, etc.)."
-  type        = map(string)
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# OPTIONAL - ASSIGNMENT CONFIGURATION
-# ══════════════════════════════════════════════════════════════════════════════
-
-variable "deploy_root_assignments" {
-  description = "Deploy policy assignments at the root management group level. These apply to all descendants."
-  type        = bool
-  default     = true
-}
-
-variable "deploy_platform_assignments" {
-  description = "Deploy policy assignments at the Platform management group and its children (Management, Connectivity, Identity)."
-  type        = bool
-  default     = true
-}
-
-variable "deploy_landing_zone_assignments" {
-  description = "Deploy policy assignments at the Landing Zones management group and archetype children."
-  type        = bool
-  default     = true
-}
-
-variable "deploy_decommissioned_assignments" {
-  description = "Deploy deny-all policy assignments to the Decommissioned management group."
-  type        = bool
-  default     = true
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# OPTIONAL - BUILTIN INITIATIVE ASSIGNMENTS
-# ══════════════════════════════════════════════════════════════════════════════
-
-variable "assign_azure_security_benchmark" {
-  description = "Assign the Azure Security Benchmark built-in initiative to the Platform management group."
-  type        = bool
-  default     = true
-}
-
-variable "assign_vm_insights" {
-  description = "Assign the VM Insights built-in initiative to the Platform management group."
-  type        = bool
-  default     = true
-}
-
-variable "assign_nist_sp_800_53" {
-  description = "Assign the NIST SP 800-53 R5 built-in initiative (for compliance reporting only)."
-  type        = bool
-  default     = false
-}
-
-variable "assign_iso_27001" {
-  description = "Assign the ISO 27001:2013 built-in initiative (for compliance reporting only)."
-  type        = bool
-  default     = false
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# OPTIONAL - POLICY PARAMETERS (Australia Project Specific)
-# ══════════════════════════════════════════════════════════════════════════════
-
-variable "allowed_locations" {
-  description = "List of allowed Azure regions for the Allowed Locations policy."
-  type        = list(string)
-  default     = ["australiaeast", "australiasoutheast"]
-
-  validation {
-    condition     = length(var.allowed_locations) > 0
-    error_message = "At least one allowed location must be specified."
-  }
-}
-
-variable "log_analytics_workspace_id" {
-  description = "Resource ID of the central Log Analytics workspace for diagnostic settings and monitoring policies."
-  type        = string
-  default     = ""
-}
-
-variable "log_retention_days" {
-  description = "Minimum log retention days for Log Analytics workspace (90 days interactive as per project requirements)."
-  type        = number
-  default     = 90
-
-  validation {
-    condition     = var.log_retention_days >= 30 && var.log_retention_days <= 730
-    error_message = "Log retention must be between 30 and 730 days."
-  }
-}
-
-variable "required_tags" {
-  description = "List of tag names that are required on resource groups."
-  type        = list(string)
-  default     = ["Environment", "Owner", "CostCenter", "Application"]
-}
-
-variable "allowed_vm_skus_sandbox" {
-  description = "List of allowed VM SKUs for Sandbox environments (cost control)."
-  type        = list(string)
-  default = [
-    "Standard_B1s",
-    "Standard_B1ms",
-    "Standard_B2s",
-    "Standard_B2ms",
-    "Standard_D2s_v3",
-    "Standard_D2s_v4",
-    "Standard_D2s_v5"
-  ]
-}
-
-variable "backup_geo_redundancy_regions" {
-  description = "Map of primary region to DR region for backup cross-region restore requirements."
-  type        = map(string)
-  default = {
-    "australiaeast" = "australiasoutheast"
-  }
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# OPTIONAL - MANAGED IDENTITY FOR DEPLOYIFNOTEXISTS
-# ══════════════════════════════════════════════════════════════════════════════
-
-variable "create_remediation_identity" {
-  description = "Create a User Assigned Managed Identity for policy remediation tasks (DeployIfNotExists, Modify effects)."
-  type        = bool
-  default     = true
-}
-
-variable "remediation_identity_name" {
-  description = "Name of the managed identity for policy remediation. If not specified, uses 'policy-remediation-identity'."
-  type        = string
-  default     = "policy-remediation-identity"
-}
-
-variable "remediation_identity_resource_group" {
-  description = "Resource group name where the remediation managed identity will be created. Required if create_remediation_identity is true."
-  type        = string
-  default     = ""
-}
-
-variable "remediation_identity_location" {
-  description = "Location for the remediation managed identity."
-  type        = string
-  default     = "australiaeast"
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# OPTIONAL - CUSTOM ASSIGNMENTS
-# ══════════════════════════════════════════════════════════════════════════════
-
-variable "custom_policy_assignments" {
+variable "management_group_assignments" {
   description = <<-EOT
-    Map of custom policy assignments to create beyond the CAF defaults.
-    Each assignment requires:
-    - policy_definition_id or policy_set_definition_id: The policy or initiative to assign
-    - management_group_id: Where to assign (can reference var.management_group_hierarchy keys)
-    - display_name: Human-readable name
-    - description: Assignment description
-    - enforcement_mode: "Default" or "DoNotEnforce"
-    - parameters: Map of parameter values (optional)
-    - non_compliance_message: Message shown for non-compliant resources (optional)
-    - identity_type: "None", "SystemAssigned", or "UserAssigned" (optional, for remediation)
+    Map of policy assignments at management group scope.
+    Each assignment can reference either a policy definition or policy set definition (initiative).
+    
+    Key: Unique identifier for the assignment
+    Values:
+      - management_group_id: Full resource ID of the management group
+      - policy_definition_id: Resource ID of policy definition (mutually exclusive with policy_set_definition_id)
+      - policy_set_definition_id: Resource ID of policy set definition/initiative (mutually exclusive with policy_definition_id)
+      - display_name: Human-readable name for the assignment
+      - description: Description of the assignment purpose
+      - enforce: Whether to enforce the policy (true) or audit only (false)
+      - parameters: JSON-encoded parameters for the policy
+      - non_compliance_message: Message shown when resources are non-compliant
+      - identity_type: Type of managed identity (None, SystemAssigned, UserAssigned)
+      - identity_ids: List of User Assigned Managed Identity IDs (required if identity_type = UserAssigned)
+      - location: Location for the managed identity (required if identity_type != None)
+      - not_scopes: List of scopes to exclude from the assignment
+      - metadata: Additional metadata as JSON string
   EOT
   type = map(object({
-    policy_definition_id     = optional(string)
-    policy_set_definition_id = optional(string)
-    management_group_id      = string
-    display_name             = string
-    description              = optional(string, "")
-    enforcement_mode         = optional(string, "Default")
-    parameters               = optional(map(any), {})
-    non_compliance_message   = optional(string)
-    identity_type            = optional(string, "None")
+    management_group_id       = string
+    policy_definition_id      = optional(string)
+    policy_set_definition_id  = optional(string)
+    display_name              = string
+    description               = optional(string, "")
+    enforce                   = optional(bool, true)
+    parameters                = optional(string, null)
+    non_compliance_message    = optional(string, null)
+    identity_type             = optional(string, "None")
+    identity_ids              = optional(list(string), [])
+    location                  = optional(string, null)
+    not_scopes                = optional(list(string), [])
+    metadata                  = optional(string, null)
   }))
   default = {}
 
   validation {
     condition = alltrue([
-      for k, v in var.custom_policy_assignments :
-      (v.policy_definition_id != null || v.policy_set_definition_id != null) &&
-      !(v.policy_definition_id != null && v.policy_set_definition_id != null)
+      for k, v in var.management_group_assignments :
+      (v.policy_definition_id != null && v.policy_set_definition_id == null) ||
+      (v.policy_definition_id == null && v.policy_set_definition_id != null)
     ])
-    error_message = "Each custom assignment must have either policy_definition_id OR policy_set_definition_id, but not both."
+    error_message = "Each assignment must have either policy_definition_id OR policy_set_definition_id, not both or neither."
   }
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# OPTIONAL - ENFORCEMENT AND NON-COMPLIANCE
-# ══════════════════════════════════════════════════════════════════════════════
-
-variable "enforcement_mode_override" {
-  description = "Override enforcement mode for all assignments. Use 'DoNotEnforce' for audit-only mode during migration. Null means use default per assignment."
-  type        = string
-  default     = null
 
   validation {
-    condition     = var.enforcement_mode_override == null || contains(["Default", "DoNotEnforce"], var.enforcement_mode_override)
-    error_message = "Enforcement mode must be 'Default', 'DoNotEnforce', or null."
+    condition = alltrue([
+      for k, v in var.management_group_assignments :
+      contains(["None", "SystemAssigned", "UserAssigned"], v.identity_type)
+    ])
+    error_message = "identity_type must be one of: None, SystemAssigned, UserAssigned."
+  }
+
+  validation {
+    condition = alltrue([
+      for k, v in var.management_group_assignments :
+      v.identity_type != "UserAssigned" || length(v.identity_ids) > 0
+    ])
+    error_message = "identity_ids must be provided when identity_type is UserAssigned."
+  }
+
+  validation {
+    condition = alltrue([
+      for k, v in var.management_group_assignments :
+      v.identity_type == "None" || v.location != null
+    ])
+    error_message = "location must be provided when identity_type is not None."
   }
 }
 
-variable "non_compliance_message_prefix" {
-  description = "Prefix for non-compliance messages. Organization name or project identifier."
-  type        = string
-  default     = "[CAF Landing Zone]"
+variable "subscription_assignments" {
+  description = <<-EOT
+    Map of policy assignments at subscription scope.
+    Same structure as management_group_assignments but with subscription_id instead of management_group_id.
+  EOT
+  type = map(object({
+    subscription_id           = string
+    policy_definition_id      = optional(string)
+    policy_set_definition_id  = optional(string)
+    display_name              = string
+    description               = optional(string, "")
+    enforce                   = optional(bool, true)
+    parameters                = optional(string, null)
+    non_compliance_message    = optional(string, null)
+    identity_type             = optional(string, "None")
+    identity_ids              = optional(list(string), [])
+    location                  = optional(string, null)
+    not_scopes                = optional(list(string), [])
+    metadata                  = optional(string, null)
+  }))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for k, v in var.subscription_assignments :
+      (v.policy_definition_id != null && v.policy_set_definition_id == null) ||
+      (v.policy_definition_id == null && v.policy_set_definition_id != null)
+    ])
+    error_message = "Each assignment must have either policy_definition_id OR policy_set_definition_id, not both or neither."
+  }
+}
+
+variable "resource_group_assignments" {
+  description = <<-EOT
+    Map of policy assignments at resource group scope.
+    Same structure as management_group_assignments but with resource_group_id instead of management_group_id.
+  EOT
+  type = map(object({
+    resource_group_id         = string
+    policy_definition_id      = optional(string)
+    policy_set_definition_id  = optional(string)
+    display_name              = string
+    description               = optional(string, "")
+    enforce                   = optional(bool, true)
+    parameters                = optional(string, null)
+    non_compliance_message    = optional(string, null)
+    identity_type             = optional(string, "None")
+    identity_ids              = optional(list(string), [])
+    location                  = optional(string, null)
+    not_scopes                = optional(list(string), [])
+    metadata                  = optional(string, null)
+  }))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for k, v in var.resource_group_assignments :
+      (v.policy_definition_id != null && v.policy_set_definition_id == null) ||
+      (v.policy_definition_id == null && v.policy_set_definition_id != null)
+    ])
+    error_message = "Each assignment must have either policy_definition_id OR policy_set_definition_id, not both or neither."
+  }
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# OPTIONAL - ASSIGNMENT METADATA
+# OPTIONAL VARIABLES - CAF Landing Zone Assignments
 # ══════════════════════════════════════════════════════════════════════════════
 
-variable "assignment_metadata" {
-  description = "Additional metadata to include in all policy assignments."
+variable "deploy_caf_assignments" {
+  description = "Deploy the pre-configured CAF Landing Zone policy assignments."
+  type        = bool
+  default     = false
+}
+
+variable "caf_management_groups" {
+  description = <<-EOT
+    Map of CAF management group IDs for automatic assignment deployment.
+    Required when deploy_caf_assignments = true.
+    
+    Expected keys:
+      - root: Root management group ID
+      - platform: Platform management group ID
+      - connectivity: Connectivity management group ID
+      - identity: Identity management group ID
+      - management: Management management group ID
+      - landing_zones: Landing Zones parent management group ID
+      - online_prod: Online Production landing zone MG ID
+      - online_nonprod: Online Non-Production landing zone MG ID
+      - corp_prod: Corporate Production landing zone MG ID
+      - corp_nonprod: Corporate Non-Production landing zone MG ID
+      - sandbox: Sandbox landing zone MG ID
+      - decommissioned: Decommissioned management group ID
+  EOT
   type        = map(string)
-  default = {
-    createdBy = "Terraform"
-    framework = "CAF Landing Zone"
+  default     = {}
+
+  validation {
+    condition = !var.deploy_caf_assignments || alltrue([
+      for key in ["root", "platform", "landing_zones"] :
+      contains(keys(var.caf_management_groups), key)
+    ])
+    error_message = "When deploy_caf_assignments is true, caf_management_groups must contain at least: root, platform, landing_zones."
   }
 }
+
+variable "caf_initiative_ids" {
+  description = <<-EOT
+    Map of CAF initiative IDs from module G02 for automatic assignment.
+    Required when deploy_caf_assignments = true.
+    
+    Expected keys match initiative names from G02:
+      - caf-security-baseline
+      - caf-network-baseline
+      - caf-monitoring-baseline
+      - caf-governance-baseline
+      - caf-backup-baseline
+      - caf-cost-baseline
+      - caf-identity-baseline
+      - caf-online-prod
+      - caf-online-nonprod
+      - caf-corp-prod
+      - caf-corp-nonprod
+      - caf-sandbox
+      - caf-decommissioned
+  EOT
+  type        = map(string)
+  default     = {}
+}
+
+variable "caf_builtin_initiative_ids" {
+  description = <<-EOT
+    Map of built-in initiative IDs for CAF assignments.
+    Expected keys:
+      - azure_security_benchmark
+      - vm_insights
+      - nist_sp_800_53_r5 (optional)
+      - iso_27001_2013 (optional)
+  EOT
+  type        = map(string)
+  default     = {}
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OPTIONAL VARIABLES - Role Assignments for Managed Identities
+# ══════════════════════════════════════════════════════════════════════════════
+
+variable "create_role_assignments" {
+  description = "Automatically create role assignments for policy assignments with managed identities (DeployIfNotExists, Modify)."
+  type        = bool
+  default     = true
+}
+
+variable "role_definition_ids" {
+  description = <<-EOT
+    Map of role definition IDs to assign to policy managed identities.
+    Key: Policy assignment key
+    Value: List of role definition IDs
+    
+    If not specified, the module will use default roles based on policy effect:
+      - DeployIfNotExists: Contributor
+      - Modify: Contributor
+  EOT
+  type        = map(list(string))
+  default     = {}
+}
+
+variable "default_role_definition_id" {
+  description = "Default role definition ID to assign to managed identities. Defaults to Contributor."
+  type        = string
+  default     = "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OPTIONAL VARIABLES - Parameters
+# ══════════════════════════════════════════════════════════════════════════════
+
+variable "default_location" {
+  description = "Default location for managed identities when not specified in assignment."
+  type        = string
+  default     = "australiaeast"
+}
+
+variable "log_analytics_workspace_id" {
+  description = "Resource ID of the central Log Analytics workspace for monitoring policies."
+  type        = string
+  default     = ""
+}
+
+variable "allowed_regions" {
+  description = "List of allowed Azure regions for location policies."
+  type        = list(string)
+  default     = ["australiaeast", "australiasoutheast"]
+}
+
+variable "required_tags" {
+  description = "List of required tag names for governance policies."
+  type        = list(string)
+  default     = ["Environment", "Owner", "CostCenter", "Application"]
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OPTIONAL VARIABLES - Tags
+# ══════════════════════════════════════════════════════════════════════════════
 
 variable "tags" {
-  description = "Tags to apply to resources created by this module (managed identity if created)."
+  description = "Tags to be applied to resources created by this module."
   type        = map(string)
   default     = {}
 }

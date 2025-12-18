@@ -1,7 +1,7 @@
-################################################################################
-# Terraform and Provider Requirements
-# Module: G03 - Policy Assignments
-################################################################################
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║ Module: policy-assignments (G03)                                              ║
+# ║ Purpose: Azure Policy Assignments for CAF Landing Zone                        ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 terraform {
   required_version = ">= 1.5.0"
@@ -10,10 +10,6 @@ terraform {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = ">= 3.80.0"
-    }
-    time = {
-      source  = "hashicorp/time"
-      version = ">= 0.9.0"
     }
   }
 }
