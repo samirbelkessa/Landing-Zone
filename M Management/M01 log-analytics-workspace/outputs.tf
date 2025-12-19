@@ -134,7 +134,7 @@ output "automation_linked_service_id" {
 #-------------------------------------------------------------------------------
 
 output "archive_tables" {
-  description = "Map of tables configured with archive retention."
+  description = "Tables configured with archive retention."
   value = {
     for k, v in azurerm_log_analytics_workspace_table.archive : k => {
       name                    = v.name
@@ -181,17 +181,15 @@ output "dr_enabled" {
 #-------------------------------------------------------------------------------
 # Query Pack
 #-------------------------------------------------------------------------------
-
 output "query_pack_id" {
-  description = "Resource ID of the Log Analytics Query Pack."
-  value       = azurerm_log_analytics_query_pack.caf_queries.id
+  description = "ID of the CAF query pack."
+  value       = try(azurerm_log_analytics_query_pack.caf_queries[0].id, null)
 }
 
 output "query_pack_name" {
-  description = "Name of the Query Pack."
-  value       = azurerm_log_analytics_query_pack.caf_queries.name
+  description = "Name of the CAF query pack."
+  value       = try(azurerm_log_analytics_query_pack.caf_queries[0].name, null)
 }
-
 #-------------------------------------------------------------------------------
 # Diagnostic Settings
 #-------------------------------------------------------------------------------

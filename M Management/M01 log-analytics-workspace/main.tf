@@ -52,10 +52,13 @@ resource "azurerm_log_analytics_workspace_table" "archive" {
 
   lifecycle {
     # Tables may be created automatically by solutions
-    create_before_destroy = true
+    
+    ignore_changes = [
+      retention_in_days
+    ]
   }
 
-  depends_on = [azurerm_log_analytics_workspace.this]
+  depends_on = [azurerm_log_analytics_solution.solutions]
 }
 
 #-------------------------------------------------------------------------------
@@ -122,9 +125,8 @@ resource "azurerm_monitor_diagnostic_setting" "this" {
   }
 
   # Metrics
-  metric {
+enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 
   lifecycle {
@@ -238,6 +240,7 @@ resource "azurerm_log_analytics_saved_search" "failed_logins" {
 ################################################################################
 
 resource "azurerm_log_analytics_query_pack" "caf_queries" {
+  count = var.deploy_solutions ? 1 : 0 
   name                = "caf-queries-${var.name}"
   resource_group_name = var.resource_group_name
   location            = var.location
@@ -245,22 +248,30 @@ resource "azurerm_log_analytics_query_pack" "caf_queries" {
   tags = local.tags
 }
 
+resource "random_uuid" "query_resource_changes" {
+  count = var.deploy_solutions ? 1 : 0
+}
+
 resource "azurerm_log_analytics_query_pack_query" "resource_changes" {
-  query_pack_id = azurerm_log_analytics_query_pack.caf_queries.id
+  count = var.deploy_solutions ? 1 : 0
+
+  name          = random_uuid.query_resource_changes[0].result
+  query_pack_id = azurerm_log_analytics_query_pack.caf_queries[0].id
+  display_name  = "Resource Changes - Last 24 Hours"
+  description   = "Shows all Azure resource changes in the last 24 hours from Activity logs."
   
-  body         = <<-QUERY
+  body = <<-QUERY
     AzureActivity
-    | where OperationNameValue endswith "write" or OperationNameValue endswith "delete"
-    | where ActivityStatusValue == "Success"
-    | project TimeGenerated, Caller, OperationNameValue, ResourceGroup, Resource = _ResourceId
+    | where TimeGenerated > ago(24h)
+    | where OperationNameValue has_any ("Microsoft.Resources/deployments/write", 
+                                        "Microsoft.Resources/subscriptions/resourceGroups/write",
+                                        "Microsoft.Compute/virtualMachines/write",
+                                        "Microsoft.Network/virtualNetworks/write")
+    | project TimeGenerated, OperationNameValue, ResourceGroup, Resource, Caller, ActivityStatusValue
     | order by TimeGenerated desc
   QUERY
-  display_name = "Resource Changes in Last 24 Hours"
-  description  = "Shows all successful write and delete operations"
-  
-  categories   = ["Azure Resources"]
 
-  additional_settings_json = jsonencode({
-    createdBy = "Terraform"
-  })
+  categories = ["resources"]
+
+  tags = local.query_tags
 }

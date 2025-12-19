@@ -11,6 +11,24 @@ locals {
     Module    = "log-analytics-workspace"
   }
 
+  query_tags = {
+    for k, v in local.tags : k => v
+    if contains(["Environment", "Project", "ManagedBy", "Module", "Application"], k)
+  }
+  # Tables qui existent TOUJOURS dans un workspace (built-in)
+  builtin_tables = ["Perf", "Event", "Heartbeat", "Alert", "AzureMetrics"]
+  
+  # Tables créées par les solutions (nécessitent depends_on)
+  solution_tables = ["SecurityEvent", "Syslog", "SigninLogs", "AuditLogs", "AzureActivity"]
+  
+  # Tables créées à l'ingestion (NE PAS configurer au déploiement initial)
+  # "AzureDiagnostics" - créée quand une ressource envoie des diagnostics
+  
+  # Filtrer uniquement les tables safe pour la configuration initiale
+  safe_archive_tables = {
+    for table, retention in var.archive_tables : table => retention
+    if contains(local.builtin_tables, table) && retention > var.retention_in_days
+  }
   tags = merge(local.default_tags, var.tags)
 
   #-----------------------------------------------------------------------------
