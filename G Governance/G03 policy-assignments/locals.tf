@@ -1,5 +1,6 @@
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║ Locals - Policy Assignments (G03)                                             ║
+# ║ FIXED: Keys ≤24 chars to avoid truncation + VM Insights removed (needs M07)   ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 locals {
@@ -27,12 +28,13 @@ locals {
 
   # ══════════════════════════════════════════════════════════════════════════════
   # CAF Assignment Configuration
+  # KEY NAMING: All keys must be ≤24 characters (Azure assignment name limit)
   # ══════════════════════════════════════════════════════════════════════════════
 
   # Baseline initiatives to assign at Root
   caf_root_assignments = var.deploy_caf_assignments ? {
-    # Governance Baseline - Root level
-    "root-governance-baseline" = {
+    # Governance Baseline - Root level (NO PARAMETERS - already set in G02)
+    "root-governance-baseline" = {  # 24 chars - OK
       management_group_id      = lookup(var.caf_management_groups, "root", "")
       policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-governance-baseline", null)
       display_name             = "CAF Governance Baseline"
@@ -40,13 +42,11 @@ locals {
       enforce                  = true
       identity_type            = "None"
       location                 = null
-      parameters = jsonencode({
-        listOfAllowedLocations = { value = var.allowed_regions }
-      })
+      parameters               = null  # Parameters are set at initiative level in G02
     }
 
     # Security Baseline - Root level
-    "root-security-baseline" = {
+    "root-security-baseline" = {  # 22 chars - OK
       management_group_id      = lookup(var.caf_management_groups, "root", "")
       policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-security-baseline", null)
       display_name             = "CAF Security Baseline"
@@ -58,7 +58,8 @@ locals {
     }
 
     # Azure Security Benchmark - Root level (built-in)
-    "root-azure-security-benchmark" = {
+    # RENAMED: root-azure-security-benchmark (29) → root-azure-sec-bench (20)
+    "root-azure-sec-bench" = {
       management_group_id      = lookup(var.caf_management_groups, "root", "")
       policy_set_definition_id = lookup(var.caf_builtin_initiative_ids, "azure_security_benchmark", null)
       display_name             = "Microsoft Cloud Security Benchmark"
@@ -70,10 +71,11 @@ locals {
     }
   } : {}
 
-  # Platform-level assignments
+  # Platform-level assignments (VM Insights REMOVED - requires DCR which doesn't exist yet)
   caf_platform_assignments = var.deploy_caf_assignments ? {
     # Network Baseline - Connectivity
-    "connectivity-network-baseline" = {
+    # RENAMED: connectivity-network-baseline (29) → conn-net-baseline (17)
+    "conn-net-baseline" = {
       management_group_id      = lookup(var.caf_management_groups, "connectivity", lookup(var.caf_management_groups, "platform", ""))
       policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-network-baseline", null)
       display_name             = "CAF Network Baseline"
@@ -85,7 +87,7 @@ locals {
     }
 
     # Identity Baseline - Identity MG
-    "identity-baseline" = {
+    "identity-baseline" = {  # 17 chars - OK
       management_group_id      = lookup(var.caf_management_groups, "identity", lookup(var.caf_management_groups, "platform", ""))
       policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-identity-baseline", null)
       display_name             = "CAF Identity Baseline"
@@ -97,38 +99,34 @@ locals {
     }
 
     # Monitoring Baseline - Management MG
-    "management-monitoring-baseline" = {
+    # RENAMED: management-monitoring-baseline (30) → mgmt-mon-baseline (17)
+    "mgmt-mon-baseline" = {
       management_group_id      = lookup(var.caf_management_groups, "management", lookup(var.caf_management_groups, "platform", ""))
       policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-monitoring-baseline", null)
       display_name             = "CAF Monitoring Baseline"
       description              = "Enforces monitoring baseline including Log Analytics retention."
       enforce                  = true
-      identity_type            = "SystemAssigned"
-      location                 = var.default_location
-      parameters = var.log_analytics_workspace_id != "" ? jsonencode({
-        logAnalyticsWorkspaceId = { value = var.log_analytics_workspace_id }
-      }) : null
+      identity_type            = "None"
+      location                 = null
+      parameters               = null
     }
 
-    # VM Insights - Platform (built-in)
-    "platform-vm-insights" = {
-      management_group_id      = lookup(var.caf_management_groups, "platform", "")
-      policy_set_definition_id = lookup(var.caf_builtin_initiative_ids, "vm_insights", null)
-      display_name             = "Enable Azure Monitor for VMs"
-      description              = "Enables Azure Monitor for VMs with Azure Monitoring Agent."
-      enforce                  = true
-      identity_type            = "SystemAssigned"
-      location                 = var.default_location
-      parameters = var.log_analytics_workspace_id != "" ? jsonencode({
-        logAnalyticsWorkspace = { value = var.log_analytics_workspace_id }
-      }) : null
-    }
+    # NOTE: VM Insights removed - requires Data Collection Rule (DCR) resource
+    # which must be created by module M07 before this assignment can be made.
+    # Add VM Insights assignment after M07 is deployed:
+    # "platform-vm-insights" = {
+    #   ...
+    #   parameters = jsonencode({
+    #     bringYourOwnUserAssignedManagedIdentity = { value = false }
+    #     dcrResourceId = { value = module.data_collection_rules.dcr_id }
+    #   })
+    # }
   } : {}
 
-  # Landing Zone parent assignments
+  # Landing Zone parent assignments (VM Insights REMOVED)
   caf_landing_zones_assignments = var.deploy_caf_assignments ? {
     # Backup Baseline - Landing Zones
-    "lz-backup-baseline" = {
+    "lz-backup-baseline" = {  # 18 chars - OK
       management_group_id      = lookup(var.caf_management_groups, "landing_zones", "")
       policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-backup-baseline", null)
       display_name             = "CAF Backup Baseline"
@@ -140,7 +138,7 @@ locals {
     }
 
     # Cost Baseline - Landing Zones
-    "lz-cost-baseline" = {
+    "lz-cost-baseline" = {  # 16 chars - OK
       management_group_id      = lookup(var.caf_management_groups, "landing_zones", "")
       policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-cost-baseline", null)
       display_name             = "CAF Cost Management Baseline"
@@ -151,26 +149,15 @@ locals {
       parameters               = null
     }
 
-    # VM Insights - Landing Zones (built-in)
-    "lz-vm-insights" = {
-      management_group_id      = lookup(var.caf_management_groups, "landing_zones", "")
-      policy_set_definition_id = lookup(var.caf_builtin_initiative_ids, "vm_insights", null)
-      display_name             = "Enable Azure Monitor for VMs"
-      description              = "Enables Azure Monitor for VMs in Landing Zones."
-      enforce                  = true
-      identity_type            = "SystemAssigned"
-      location                 = var.default_location
-      parameters = var.log_analytics_workspace_id != "" ? jsonencode({
-        logAnalyticsWorkspace = { value = var.log_analytics_workspace_id }
-      }) : null
-    }
+    # NOTE: VM Insights removed - requires Data Collection Rule (DCR) resource
+    # Add after M07 deployment
   } : {}
 
   # Archetype-specific assignments
   caf_archetype_assignments = var.deploy_caf_assignments ? merge(
     # Online Production
     lookup(var.caf_management_groups, "online_prod", "") != "" ? {
-      "online-prod-initiative" = {
+      "online-prod-initiative" = {  # 22 chars - OK
         management_group_id      = var.caf_management_groups["online_prod"]
         policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-online-prod", null)
         display_name             = "CAF Online Production"
@@ -183,8 +170,9 @@ locals {
     } : {},
 
     # Online Non-Production
+    # RENAMED: online-nonprod-initiative (25) → online-nonprod-init (19)
     lookup(var.caf_management_groups, "online_nonprod", "") != "" ? {
-      "online-nonprod-initiative" = {
+      "online-nonprod-init" = {
         management_group_id      = var.caf_management_groups["online_nonprod"]
         policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-online-nonprod", null)
         display_name             = "CAF Online Non-Production"
@@ -198,7 +186,7 @@ locals {
 
     # Corporate Production
     lookup(var.caf_management_groups, "corp_prod", "") != "" ? {
-      "corp-prod-initiative" = {
+      "corp-prod-initiative" = {  # 20 chars - OK
         management_group_id      = var.caf_management_groups["corp_prod"]
         policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-corp-prod", null)
         display_name             = "CAF Corporate Production"
@@ -212,7 +200,7 @@ locals {
 
     # Corporate Non-Production
     lookup(var.caf_management_groups, "corp_nonprod", "") != "" ? {
-      "corp-nonprod-initiative" = {
+      "corp-nonprod-initiative" = {  # 23 chars - OK
         management_group_id      = var.caf_management_groups["corp_nonprod"]
         policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-corp-nonprod", null)
         display_name             = "CAF Corporate Non-Production"
@@ -226,21 +214,22 @@ locals {
 
     # Sandbox
     lookup(var.caf_management_groups, "sandbox", "") != "" ? {
-      "sandbox-initiative" = {
+      "sandbox-initiative" = {  # 18 chars - OK
         management_group_id      = var.caf_management_groups["sandbox"]
         policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-sandbox", null)
         display_name             = "CAF Sandbox"
         description              = "Policy initiative for Sandbox Landing Zone - Audit mode with restrictions."
         enforce                  = true
-        identity_type            = "SystemAssigned"
-        location                 = var.default_location
+        identity_type            = "None"
+        location                 = null
         parameters               = null
       }
     } : {},
 
     # Decommissioned
+    # RENAMED: decommissioned-initiative (25) → decom-initiative (16)
     lookup(var.caf_management_groups, "decommissioned", "") != "" ? {
-      "decommissioned-initiative" = {
+      "decom-initiative" = {
         management_group_id      = var.caf_management_groups["decommissioned"]
         policy_set_definition_id = lookup(var.caf_initiative_ids, "caf-decommissioned", null)
         display_name             = "CAF Decommissioned"

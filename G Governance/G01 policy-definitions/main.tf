@@ -14,23 +14,10 @@ resource "azurerm_policy_definition" "policies" {
   mode                = each.value.mode
   management_group_id = var.management_group_id
 
-  # Metadata - includes category, version, and any custom metadata
-  metadata = jsonencode(merge(
-    {
-      category = try(each.value.metadata.category, "General")
-      version  = try(each.value.metadata.version, "1.0.0")
-    },
-    local.module_tags,
-    try(each.value.metadata, {})
-  ))
-
-  # Parameters schema - supports both HCL objects and JSON strings
-  parameters = can(tostring(each.value.parameters)) ? each.value.parameters : (
-    length(keys(each.value.parameters)) > 0 ? jsonencode(each.value.parameters) : null
-  )
-
-  # Policy rule - supports both HCL objects and JSON strings
-  policy_rule = can(tostring(each.value.policy_rule)) ? each.value.policy_rule : jsonencode(each.value.policy_rule)
+  # Already JSON-encoded in locals.tf
+  metadata    = each.value.metadata
+  parameters  = each.value.parameters
+  policy_rule = each.value.policy_rule
 
   lifecycle {
     # Prevent destruction of policies that may be in use
@@ -46,91 +33,91 @@ resource "azurerm_policy_definition" "policies" {
 # These can be used by other modules (like G03 policy-assignments) to create assignments
 
 data "azurerm_policy_definition" "allowed_locations" {
-  display_name = "Allowed locations"
+  name = "e56962a6-4747-49cd-b67b-bf8b01975c4c"
 }
 
 data "azurerm_policy_definition" "allowed_locations_rg" {
-  display_name = "Allowed locations for resource groups"
+  name = "e765b5de-1225-4ba3-bd56-1ac6695af988"
 }
 
 data "azurerm_policy_definition" "not_allowed_resource_types" {
-  display_name = "Not allowed resource types"
+  name = "6c112d4e-5bc7-47ae-a041-ea2d9dccd749"
 }
 
 data "azurerm_policy_definition" "require_tag_rg" {
-  display_name = "Require a tag on resource groups"
+  name = "96670d01-0a4d-4649-9c89-2d3abc0a5025"
 }
 
 data "azurerm_policy_definition" "inherit_tag_rg" {
-  display_name = "Inherit a tag from the resource group"
+  name = "ea3f2387-9b95-492a-a190-fcdc54f7b070"
 }
 
 data "azurerm_policy_definition" "ama_installed" {
-  display_name = "Azure Monitor Agent should be installed on virtual machines"
+  name = "845857af-0333-4c5d-bbbc-6076697da122"
 }
 
 data "azurerm_policy_definition" "defender_enabled" {
-  display_name = "Azure Defender for servers should be enabled"
+  name = "4da35fc9-c9e7-4960-aec9-797fe7d9051d"
 }
 
 data "azurerm_policy_definition" "secure_transfer_storage" {
-  display_name = "Secure transfer to storage accounts should be enabled"
+  name = "404c3081-a854-4457-ae30-26a93ef643f9"
 }
 
 data "azurerm_policy_definition" "vm_encryption_host" {
-  display_name = "Virtual machines should have encryption at host enabled"
+  name = "fc4d8e41-e223-45ea-9bf5-eada37891d87"
 }
 
 data "azurerm_policy_definition" "backup_vms" {
-  display_name = "Azure Backup should be enabled for Virtual Machines"
+  name = "013e242c-8828-4970-87b3-ab247555486d"
 }
 
 data "azurerm_policy_definition" "subnet_nsg" {
-  display_name = "Subnets should have a Network Security Group"
+  name = "e71308d3-144b-4262-b144-efdc3cc90517"
 }
 
 data "azurerm_policy_definition" "nsg_flow_logs" {
-  display_name = "Flow logs should be enabled for every network security group"
+  name = "27960feb-a23c-4577-8d36-ef8b5f35e0be"
 }
 
 data "azurerm_policy_definition" "keyvault_rbac" {
-  display_name = "Azure Key Vault should use RBAC permission model"
+  name = "12d4fa5e-1f9f-4c21-97a9-b99b3c6611b5"
 }
 
 data "azurerm_policy_definition" "keyvault_soft_delete" {
-  display_name = "Key vaults should have soft delete enabled"
+  name = "1e66c121-a66a-4b1f-9b83-0fd99bf0fc2d"
 }
 
 data "azurerm_policy_definition" "keyvault_purge_protection" {
-  display_name = "Key vaults should have purge protection enabled"
+  name = "0b60c0b2-2dc2-4e1c-b5c9-abbed971de53"
 }
 
 data "azurerm_policy_definition" "waf_appgw" {
-  display_name = "Web Application Firewall (WAF) should be enabled for Application Gateway"
+  name = "564feb30-bf6a-4854-b4bb-0d2d2d1e6c66"
 }
 
 data "azurerm_policy_definition" "waf_frontdoor" {
-  display_name = "Azure Web Application Firewall should be enabled for Azure Front Door entry-points"
+  name = "055aa869-bc98-4af8-bafc-23f1ab6ffe2c"
 }
 
 data "azurerm_policy_definition" "webapp_https" {
-  display_name = "Web Application should only be accessible over HTTPS"
+  name = "a4af4a39-4135-47fb-b175-47fbdf85311d"
 }
 
 data "azurerm_policy_definition" "tls_minimum" {
-  display_name = "Latest TLS version should be used in your API App"
+  name = "f0e6e85b-9b9f-4a4b-b67b-f730d42f1b0b"
 }
 
 data "azurerm_policy_definition" "deny_public_ip" {
-  display_name = "Network interfaces should not have public IPs"
+  name = "83a86a26-fd1f-447c-b59d-e51f44264114"
 }
 
 data "azurerm_policy_definition" "managed_identity" {
-  display_name = "Managed identity should be used in your Function App"
+  name = "0da106f2-4ca3-48e8-bc85-c638fe6aea8f"
 }
 
 data "azurerm_policy_definition" "allowed_vm_skus" {
-  display_name = "Allowed virtual machine size SKUs"
+  name = "cccc23c7-8427-4f53-ad12-b6a63eb452b3"
 }
 
 ################################################################################
