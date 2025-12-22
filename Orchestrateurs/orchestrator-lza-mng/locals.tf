@@ -1,13 +1,11 @@
 ################################################################################
-# Locals - Management Layer Orchestrator
+# locals.tf - Management Layer Orchestrator
 ################################################################################
 
 locals {
   #-----------------------------------------------------------------------------
-  # Naming Convention
+  # Location Abbreviations for F02
   #-----------------------------------------------------------------------------
-  
-  # Location abbreviations
   location_abbrev = {
     "australiaeast"      = "aue"
     "australiasoutheast" = "aus"
@@ -17,88 +15,128 @@ locals {
     "westus2"            = "wus2"
   }
 
-  primary_location_abbrev   = lookup(local.location_abbrev, var.primary_location, "aue")
-  secondary_location_abbrev = lookup(local.location_abbrev, var.secondary_location, "aus")
+  primary_region   = lookup(local.location_abbrev, var.primary_location, "aue")
+  secondary_region = lookup(local.location_abbrev, var.secondary_location, "aus")
 
-  # Environment abbreviation
-  env_abbrev = {
-    "prod"    = "prd"
-    "nonprod" = "npd"
-    "dev"     = "dev"
-    "test"    = "tst"
-    "sandbox" = "sbx"
+  #-----------------------------------------------------------------------------
+  # Environment Mapping for F03 Tags
+  #-----------------------------------------------------------------------------
+  environment_mapping = {
+    "prod"    = "Production"
+    "nonprod" = "PreProduction"
+    "dev"     = "Development"
+    "test"    = "Test"
+    "uat"     = "PreProduction"
+    "stg"     = "PreProduction"
+    "sandbox" = "Sandbox"
   }
 
-  environment_abbrev = lookup(local.env_abbrev, var.environment, "prd")
-
-  # Resource naming pattern: {type}-{project}-{env}-{region}-{instance}
-  name_prefix = "${var.project_name}-${local.environment_abbrev}-${local.primary_location_abbrev}"
+  f03_environment = local.environment_mapping[var.environment]
 
   #-----------------------------------------------------------------------------
-  # Resource Names (auto-generated if not provided)
+  # Resource Group
   #-----------------------------------------------------------------------------
-
-  resource_group_name = var.resource_group_name
-
-  # M01 - Log Analytics
-  log_analytics_name = coalesce(
-    var.log_analytics_name,
-    "law-${local.name_prefix}-001"
-  )
-
-  # M02 - Automation Account (for future use)
-  automation_account_name = "aa-${local.name_prefix}-001"
-
-  # M03 - Action Groups (for future use)
-  action_group_name_prefix = "ag-${local.name_prefix}"
-
-  # M08 - Diagnostics Storage (for future use)
-  diagnostics_storage_name = replace("stdiag${var.project_name}${local.environment_abbrev}${local.primary_location_abbrev}", "-", "")
+  rg_name     = var.resource_group_name
+  rg_location = var.primary_location
 
   #-----------------------------------------------------------------------------
-  # Tags
+  # Default Runbooks for M02
   #-----------------------------------------------------------------------------
+  default_runbooks = var.deploy_default_runbooks ? {
+    "Start-TaggedVMs" = {
+      runbook_type = "PowerShell"
+      description  = "Start VMs with AutoStart=true tag"
+      content      = <<-EOT
+        param(
+          [string]$TagName = "AutoStart",
+          [string]$TagValue = "true"
+        )
+        Connect-AzAccount -Identity
+        $VMs = Get-AzVM | Where-Object { $_.Tags[$TagName] -eq $TagValue }
+        foreach ($VM in $VMs) {
+          Write-Output "Starting VM: $($VM.Name)"
+          Start-AzVM -Name $VM.Name -ResourceGroupName $VM.ResourceGroupName -NoWait
+        }
+        Write-Output "Start command sent to $($VMs.Count) VMs"
+      EOT
+    }
+    "Stop-TaggedVMs" = {
+      runbook_type = "PowerShell"
+      description  = "Stop VMs with AutoStop=true tag"
+      content      = <<-EOT
+        param(
+          [string]$TagName = "AutoStop",
+          [string]$TagValue = "true"
+        )
+        Connect-AzAccount -Identity
+        $VMs = Get-AzVM | Where-Object { $_.Tags[$TagName] -eq $TagValue }
+        foreach ($VM in $VMs) {
+          Write-Output "Stopping VM: $($VM.Name)"
+          Stop-AzVM -Name $VM.Name -ResourceGroupName $VM.ResourceGroupName -Force -NoWait
+        }
+        Write-Output "Stop command sent to $($VMs.Count) VMs"
+      EOT
+    }
+    "Cleanup-OldSnapshots" = {
+      runbook_type = "PowerShell72"
+      description  = "Remove snapshots older than 30 days"
+      content      = <<-EOT
+        param([int]$RetentionDays = 30)
+        Connect-AzAccount -Identity
+        $threshold = (Get-Date).AddDays(-$RetentionDays)
+        $snapshots = Get-AzSnapshot | Where-Object { $_.TimeCreated -lt $threshold }
+        Write-Output "Found $($snapshots.Count) snapshots older than $RetentionDays days"
+        foreach ($snap in $snapshots) {
+          Write-Output "Removing snapshot: $($snap.Name)"
+          Remove-AzSnapshot -ResourceGroupName $snap.ResourceGroupName -SnapshotName $snap.Name -Force
+        }
+        Write-Output "Cleanup complete"
+      EOT
+    }
+  } : {}
 
-  default_tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "Terraform"
-    Orchestrator = "management-layer"
-  }
-
-  common_tags = merge(
-    local.default_tags,
-    var.owner != "" ? { Owner = var.owner } : {},
-    var.cost_center != "" ? { CostCenter = var.cost_center } : {},
-    var.tags
-  )
-
+#-----------------------------------------------------------------------------
+  # Default Schedules for M02
   #-----------------------------------------------------------------------------
-  # Module Dependencies Tracking
+  default_schedules = var.deploy_default_schedules ? tomap({
+    "weekday-start-7am-aest" = {
+      description = "Start VMs at 7 AM AEST weekdays"
+      start_time  = "2026-01-05T07:00:00+10:00"
+      frequency   = "Week"
+      interval    = 1
+      timezone    = "Australia/Sydney"
+      week_days   = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+      month_days  = []
+      expiry_time = null
+    }
+    "weekday-stop-7pm-aest" = {
+      description = "Stop VMs at 7 PM AEST weekdays"
+      start_time  = "2026-01-05T19:00:00+10:00"
+      frequency   = "Week"
+      interval    = 1
+      timezone    = "Australia/Sydney"
+      week_days   = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+      month_days  = []
+      expiry_time = null
+    }
+    "monthly-cleanup-1st" = {
+      description = "Monthly cleanup on 1st day at 2 AM AEST"
+      start_time  = "2026-02-01T02:00:00+10:00"
+      frequency   = "Month"
+      interval    = 1
+      timezone    = "Australia/Sydney"
+      week_days   = []
+      month_days  = [1]
+      expiry_time = null
+    }
+  }) : tomap({})
+#-----------------------------------------------------------------------------
+  # Dependency Validation
   #-----------------------------------------------------------------------------
-
-  # Track which modules are ready
-  modules_status = {
-    m01_ready = var.deploy_m01_log_analytics
-    m02_ready = var.deploy_m01_log_analytics && var.deploy_m02_automation
-    m03_ready = var.deploy_m01_log_analytics && var.deploy_m03_action_groups
-    m04_ready = var.deploy_m01_log_analytics && var.deploy_m03_action_groups && var.deploy_m04_alerts
-    m05_ready = var.deploy_m01_log_analytics && var.deploy_m05_diagnostic_settings
-    m06_ready = var.deploy_m01_log_analytics && var.deploy_m02_automation && var.deploy_m06_update_management
-    m07_ready = var.deploy_m01_log_analytics && var.deploy_m07_dcr
-    m08_ready = var.deploy_m08_diagnostics_storage
-  }
-
-  #-----------------------------------------------------------------------------
-  # Validation Messages
-  #-----------------------------------------------------------------------------
-
-  deployment_plan = {
-    phase_1 = var.deploy_m01_log_analytics ? "M01 Log Analytics" : "Skipped"
-    phase_2 = var.deploy_m02_automation ? "M02 Automation Account" : "Skipped"
-    phase_3 = var.deploy_m03_action_groups ? "M03 Action Groups" : "Skipped"
-    phase_4 = var.deploy_m04_alerts ? "M04 Alerts" : "Skipped"
-    phase_5 = var.deploy_m07_dcr ? "M07 Data Collection Rules" : "Skipped"
-    phase_6 = var.deploy_m08_diagnostics_storage ? "M08 Diagnostics Storage" : "Skipped"
-  }
+  m02_can_deploy = var.deploy_m02_automation && var.deploy_m01_log_analytics
+  m03_can_deploy = var.deploy_m03_action_groups && var.deploy_m01_log_analytics
+  m04_can_deploy = var.deploy_m04_alerts && var.deploy_m01_log_analytics && var.deploy_m03_action_groups
+  m06_can_deploy = var.deploy_m06_update_management && var.deploy_m01_log_analytics && var.deploy_m02_automation
+  m07_can_deploy = var.deploy_m07_dcr && var.deploy_m01_log_analytics
 }
+

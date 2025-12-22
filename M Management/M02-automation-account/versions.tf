@@ -1,5 +1,5 @@
 ################################################################################
-# versions.tf - M01 Log Analytics Workspace Module
+# versions.tf - M02 Automation Account Module
 # Terraform and Provider Constraints
 ################################################################################
 
@@ -10,10 +10,6 @@ terraform {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = ">= 3.80.0"
-    }
-    time = {
-      source  = "hashicorp/time"
-      version = ">= 0.9.0"
     }
   }
 }

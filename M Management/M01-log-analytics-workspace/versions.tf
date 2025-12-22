@@ -1,6 +1,6 @@
 ################################################################################
-# Terraform and Provider Requirements
-# Module: log-analytics-workspace (M01)
+# versions.tf - M01 Log Analytics Workspace Module
+# Terraform and Provider Constraints
 ################################################################################
 
 terraform {
@@ -11,9 +11,9 @@ terraform {
       source  = "hashicorp/azurerm"
       version = ">= 3.80.0"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = ">= 3.5.0"
+    time = {
+      source  = "hashicorp/time"
+      version = ">= 0.9.0"
     }
   }
 }

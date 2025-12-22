@@ -1,5 +1,5 @@
 ################################################################################
-# locals.tf - M01 Log Analytics Workspace Module
+# locals.tf - M02 Automation Account Module
 # Local Values and Calculations
 ################################################################################
 
@@ -23,39 +23,34 @@ locals {
   #-----------------------------------------------------------------------------
   # Final Resource Name (from F02 or custom)
   #-----------------------------------------------------------------------------
-  workspace_name = var.custom_name != null ? var.custom_name : module.naming.name
+  automation_account_name = var.custom_name != null ? var.custom_name : module.naming.name
 
   #-----------------------------------------------------------------------------
-  # Secondary Workspace Name (for DR)
+  # Identity Configuration
   #-----------------------------------------------------------------------------
-  secondary_workspace_name = "${local.workspace_name}-dr"
-
-  #-----------------------------------------------------------------------------
-  # SKU Configuration
-  #-----------------------------------------------------------------------------
-  use_capacity_reservation = var.sku == "CapacityReservation"
-
-  #-----------------------------------------------------------------------------
-  # Archive Retention Calculation
-  #-----------------------------------------------------------------------------
-  archive_retention_days = var.total_retention_in_days - var.retention_in_days
-
-  #-----------------------------------------------------------------------------
-  # Solutions to Deploy
-  #-----------------------------------------------------------------------------
-  solutions_to_deploy = var.deploy_solutions ? {
-    for sol in var.solutions : "${sol.name}-${sol.publisher}" => sol
-  } : {}
+  identity_ids = var.identity_type == "SystemAssigned" ? null : var.identity_ids
 
   #-----------------------------------------------------------------------------
   # Diagnostic Settings
   #-----------------------------------------------------------------------------
-  enable_diagnostics = var.enable_diagnostic_settings
+  enable_diagnostics = var.enable_diagnostic_settings && var.log_analytics_workspace_id != null && var.log_analytics_workspace_id != ""
 
-  diagnostic_logs = [
-    for category in var.diagnostic_categories : {
+  diagnostic_logs = var.enable_diagnostic_settings ? [
+    for category in var.diagnostic_log_categories : {
       category = category
       enabled  = true
     }
-  ]
+  ] : []
+
+  diagnostic_metrics = var.enable_diagnostic_settings ? [
+    for category in var.diagnostic_metric_categories : {
+      category = category
+      enabled  = true
+    }
+  ] : []
+
+  #-----------------------------------------------------------------------------
+  # Linked Service
+  #-----------------------------------------------------------------------------
+  create_linked_service = var.create_la_linked_service && var.log_analytics_workspace_id != null && var.log_analytics_workspace_id != ""
 }

@@ -1,7 +1,25 @@
 ################################################################################
-# Management Layer Orchestrator - Main
-# Phase 1: M01 Log Analytics Workspace
+# main.tf - Management Layer Orchestrator
+# Module Orchestration with F02 and F03 Integration
 ################################################################################
+
+#-------------------------------------------------------------------------------
+# F03 Tags for Resource Group
+#-------------------------------------------------------------------------------
+
+module "tags_rg" {
+  source = "./modules/F03-tags"
+
+  environment         = local.f03_environment
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+  module_name         = "orchestrator-management"
+}
 
 #-------------------------------------------------------------------------------
 # Resource Group (Optional Creation)
@@ -10,136 +28,160 @@
 resource "azurerm_resource_group" "management" {
   count = var.create_resource_group ? 1 : 0
 
-  name     = local.resource_group_name
+  name     = var.resource_group_name
   location = var.primary_location
 
-  tags = merge(local.common_tags, {
-    Purpose = "Management Layer Resources"
-  })
-}
-
-# Data source for existing resource group
-data "azurerm_resource_group" "management" {
-  count = var.create_resource_group ? 0 : 1
-
-  name = local.resource_group_name
-}
-
-locals {
-  # Unified resource group reference
-  rg_name     = var.create_resource_group ? azurerm_resource_group.management[0].name : data.azurerm_resource_group.management[0].name
-  rg_location = var.create_resource_group ? azurerm_resource_group.management[0].location : data.azurerm_resource_group.management[0].location
+  tags = module.tags_rg.all_tags
 }
 
 ################################################################################
 # M01 - Log Analytics Workspace
+# Appelle F02 et F03 EN INTERNE
 ################################################################################
 
 module "m01_log_analytics" {
   source = "./modules/M01-log-analytics-workspace"
   count  = var.deploy_m01_log_analytics ? 1 : 0
 
-  # Core Configuration
-  name                = local.log_analytics_name
+  #-----------------------------------------------------------------------------
+  # F02 Naming inputs (passés au module qui appelle F02 en interne)
+  #-----------------------------------------------------------------------------
+  workload    = var.project_name
+  environment = var.environment
+  region      = local.primary_region
+  instance    = "001"
+
+  # Custom name override (optional - bypasses F02)
+  custom_name = var.log_analytics_custom_name
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
   resource_group_name = local.rg_name
   location            = local.rg_location
 
-  # Retention Configuration
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs (passés au module qui appelle F03 en interne)
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # M01 specific configuration
+  #-----------------------------------------------------------------------------
   retention_in_days       = var.log_analytics_retention_days
   total_retention_in_days = var.log_analytics_total_retention_days
+  sku                     = var.log_analytics_sku
 
-  # Archive Configuration
+  # Archive configuration per table
   enable_table_level_archive = true
-  archive_tables             = var.log_analytics_archive_tables
-
-  # SKU and Quota
-  sku            = var.log_analytics_sku
-  daily_quota_gb = var.log_analytics_daily_quota_gb
+  archive_tables = {
+    "SecurityEvent" = 400
+    "SigninLogs"    = 400
+    "AuditLogs"     = 400
+    "AzureActivity" = 400
+    "Syslog"        = 400
+    "Perf"          = 180
+    "AzureMetrics"  = 180
+  }
 
   # Solutions
   deploy_solutions = true
-  solutions        = var.log_analytics_solutions
-
-  # Network Access
-  internet_ingestion_enabled = true
-  internet_query_enabled     = true
-
-  # Diagnostic Settings (self-logging)
-  enable_diagnostic_settings = true
+  solutions = [
+    { name = "SecurityInsights", publisher = "Microsoft" },
+    { name = "AzureActivity", publisher = "Microsoft" },
+    { name = "ChangeTracking", publisher = "Microsoft" },
+    { name = "Updates", publisher = "Microsoft" },
+    { name = "VMInsights", publisher = "Microsoft" },
+    { name = "ServiceMap", publisher = "Microsoft" },
+    { name = "AgentHealthAssessment", publisher = "Microsoft" },
+  ]
 
   # DR Configuration
   enable_cross_region_workspace = var.enable_log_analytics_dr
   secondary_location            = var.secondary_location
   secondary_retention_in_days   = 30
 
-  # Tags
-  tags = merge(local.common_tags, {
-    Module = "M01-LogAnalytics"
-  })
+  # Diagnostic Settings
+  enable_diagnostic_settings = true
 
-  depends_on = [
-    azurerm_resource_group.management
-  ]
+  depends_on = [azurerm_resource_group.management]
 }
 
 ################################################################################
-# M02 - Automation Account (Phase 2 - À activer après test M01)
+# M02 - Automation Account
+# Appelle F02 et F03 EN INTERNE
 ################################################################################
 
-# module "m02_automation_account" {
-#   source = "../../modules/automation-account"
-#   count  = var.deploy_m02_automation ? 1 : 0
-#
-#   name                = local.automation_account_name
-#   resource_group_name = local.rg_name
-#   location            = local.rg_location
-#
-#   # Link to Log Analytics
-#   log_analytics_workspace_id = module.m01_log_analytics[0].id
-#
-#   tags = merge(local.common_tags, {
-#     Module = "M02-Automation"
-#   })
-#
-#   depends_on = [module.m01_log_analytics]
-# }
+module "m02_automation_account" {
+  source = "./modules/M02-automation-account"
+  count  = local.m02_can_deploy ? 1 : 0
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming inputs (passés au module qui appelle F02 en interne)
+  #-----------------------------------------------------------------------------
+  workload    = var.project_name
+  environment = var.environment
+  region      = local.primary_region
+  instance    = "001"
+
+  # Custom name override (optional - bypasses F02)
+  custom_name = var.automation_custom_name
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+  location            = local.rg_location
+
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs (passés au module qui appelle F03 en interne)
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # M02 specific configuration
+  #-----------------------------------------------------------------------------
+
+  # Link to M01 Log Analytics
+  log_analytics_workspace_id = module.m01_log_analytics[0].id
+  create_la_linked_service   = true
+
+  # Security settings
+  public_network_access_enabled = var.automation_public_access
+  local_authentication_enabled  = true
+  identity_type                 = "SystemAssigned"
+
+  # Runbooks
+  runbooks = local.default_runbooks
+
+  # Schedules
+  schedules = local.default_schedules
+
+  # Diagnostic settings
+  enable_diagnostic_settings = true
+
+  depends_on = [module.m01_log_analytics]
+}
 
 ################################################################################
-# M03 - Action Groups (Phase 3 - À activer après test M02)
+# Placeholder modules for future phases (M03-M08)
 ################################################################################
 
-# module "m03_action_groups" {
-#   source = "../../modules/monitor-action-groups"
-#   count  = var.deploy_m03_action_groups ? 1 : 0
-#   ...
-# }
-
-################################################################################
-# M04 - Alerts (Phase 4 - À activer après test M03)
-################################################################################
-
-# module "m04_alerts" {
-#   source = "../../modules/monitor-alerts"
-#   count  = var.deploy_m04_alerts ? 1 : 0
-#   ...
-# }
-
-################################################################################
-# M07 - Data Collection Rules (Phase 5 - À activer après test M01)
-################################################################################
-
-# module "m07_dcr" {
-#   source = "../../modules/data-collection-rules"
-#   count  = var.deploy_m07_dcr ? 1 : 0
-#   ...
-# }
-
-################################################################################
-# M08 - Diagnostics Storage Account (Phase 6 - À activer après test M01)
-################################################################################
-
-# module "m08_diagnostics_storage" {
-#   source = "../../modules/diagnostics-storage-account"
-#   count  = var.deploy_m08_diagnostics_storage ? 1 : 0
-#   ...
-# }
+# M03 - Action Groups
+# M04 - Alerts
+# M05 - Diagnostic Settings (generic module)
+# M06 - Update Management
+# M07 - Data Collection Rules
+# M08 - Diagnostics Storage Account
