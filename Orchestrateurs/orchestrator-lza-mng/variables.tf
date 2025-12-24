@@ -220,3 +220,121 @@ variable "deploy_default_schedules" {
   type        = bool
   default     = true
 }
+
+#-------------------------------------------------------------------------------
+# M03 - ACTION GROUPS CONFIGURATION
+# À ajouter dans orchestrator-lza-mng/variables.tf après les variables M02
+#-------------------------------------------------------------------------------
+
+variable "action_groups_custom_name" {
+  description = "Custom name for Action Groups base name. Auto-generated via F02 if not provided."
+  type        = string
+  default     = null
+}
+
+variable "create_default_action_groups" {
+  description = "Create default action groups (Critical, Warning, Info)."
+  type        = bool
+  default     = true
+}
+
+variable "default_email_receivers" {
+  description = "Default email receivers for built-in action groups."
+  type = list(object({
+    name          = string
+    email_address = string
+  }))
+  default = []
+}
+
+variable "default_webhook_url" {
+  description = "Default webhook URL for action groups (e.g., Teams, Slack)."
+  type        = string
+  default     = null
+}
+
+variable "custom_action_groups" {
+  description = "Map of custom action groups to create in addition to defaults."
+  type = map(object({
+    short_name = string
+    enabled    = optional(bool, true)
+
+    email_receivers = optional(list(object({
+      name                    = string
+      email_address           = string
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    sms_receivers = optional(list(object({
+      name         = string
+      country_code = string
+      phone_number = string
+    })), [])
+
+    webhook_receivers = optional(list(object({
+      name                    = string
+      service_uri             = string
+      use_common_alert_schema = optional(bool, true)
+      aad_auth = optional(object({
+        object_id      = string
+        identifier_uri = optional(string)
+        tenant_id      = optional(string)
+      }))
+    })), [])
+
+    azure_function_receivers = optional(list(object({
+      name                     = string
+      function_app_resource_id = string
+      function_name            = string
+      http_trigger_url         = string
+      use_common_alert_schema  = optional(bool, true)
+    })), [])
+
+    logic_app_receivers = optional(list(object({
+      name                    = string
+      resource_id             = string
+      callback_url            = string
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    automation_runbook_receivers = optional(list(object({
+      name                    = string
+      automation_account_id   = string
+      runbook_name            = string
+      webhook_resource_id     = string
+      is_global_runbook       = optional(bool, false)
+      service_uri             = string
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    voice_receivers = optional(list(object({
+      name         = string
+      country_code = string
+      phone_number = string
+    })), [])
+
+    arm_role_receivers = optional(list(object({
+      name                    = string
+      role_id                 = string
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    event_hub_receivers = optional(list(object({
+      name                    = string
+      event_hub_namespace     = optional(string)
+      event_hub_name          = optional(string)
+      subscription_id         = optional(string)
+      tenant_id               = optional(string)
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    itsm_receivers = optional(list(object({
+      name                 = string
+      workspace_id         = string
+      connection_id        = string
+      ticket_configuration = string
+      region               = string
+    })), [])
+  }))
+  default = {}
+}

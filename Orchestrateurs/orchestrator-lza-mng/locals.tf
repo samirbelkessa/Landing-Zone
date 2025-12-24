@@ -134,9 +134,8 @@ locals {
   # Dependency Validation
   #-----------------------------------------------------------------------------
   m02_can_deploy = var.deploy_m02_automation && var.deploy_m01_log_analytics
-  m03_can_deploy = var.deploy_m03_action_groups && var.deploy_m01_log_analytics
+  m03_can_deploy = var.deploy_m03_action_groups
   m04_can_deploy = var.deploy_m04_alerts && var.deploy_m01_log_analytics && var.deploy_m03_action_groups
   m06_can_deploy = var.deploy_m06_update_management && var.deploy_m01_log_analytics && var.deploy_m02_automation
   m07_can_deploy = var.deploy_m07_dcr && var.deploy_m01_log_analytics
 }
-

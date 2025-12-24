@@ -176,6 +176,59 @@ module "m02_automation_account" {
 }
 
 ################################################################################
+# M03 - Monitor Action Groups
+# À ajouter dans orchestrator-lza-mng/main.tf après le module M02
+# Appelle F02 et F03 EN INTERNE
+################################################################################
+
+module "m03_action_groups" {
+  source = "./modules/M03-monitor-action-groups"
+  count  = local.m03_can_deploy ? 1 : 0
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming inputs (passés au module qui appelle F02 en interne)
+  #-----------------------------------------------------------------------------
+  workload    = var.project_name
+  environment = var.environment
+  region      = local.primary_region
+  instance    = "001"
+
+  # Custom name override (optional - bypasses F02)
+  custom_name = var.action_groups_custom_name
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs (passés au module qui appelle F03 en interne)
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # M03 specific configuration
+  #-----------------------------------------------------------------------------
+
+  # Default action groups (Critical, Warning, Info)
+  create_default_action_groups = var.create_default_action_groups
+  default_email_receivers      = var.default_email_receivers
+  default_webhook_url          = var.default_webhook_url
+
+  # Custom action groups
+  action_groups = var.custom_action_groups
+
+  depends_on = [azurerm_resource_group.management]
+}
+
+
+################################################################################
 # Placeholder modules for future phases (M03-M08)
 ################################################################################
 
