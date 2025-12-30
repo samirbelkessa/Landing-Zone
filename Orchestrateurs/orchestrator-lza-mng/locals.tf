@@ -139,3 +139,14 @@ locals {
   m06_can_deploy = var.deploy_m06_update_management && var.deploy_m01_log_analytics && var.deploy_m02_automation
   m07_can_deploy = var.deploy_m07_dcr && var.deploy_m01_log_analytics
 }
+
+# Si vous avez des subscriptions à monitorer définies comme variables:
+# 
+# m04_subscription_ids = compact([
+#   data.azurerm_client_config.current.subscription_id,
+#   var.connectivity_subscription_id,
+#   var.identity_subscription_id
+# ])
+#
+# Pour l'instant, utilise uniquement la subscription courante
+#m04_subscription_ids = [data.azurerm_client_config.current.subscription_id]

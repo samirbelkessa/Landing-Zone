@@ -117,7 +117,7 @@ resource "azurerm_log_analytics_solution" "solutions" {
 resource "time_sleep" "wait_for_solutions" {
   depends_on = [azurerm_log_analytics_solution.solutions]
 
-  create_duration = "60s"
+  create_duration = "120s"
 }
 #-------------------------------------------------------------------------------
 # Secondary Workspace (DR)
@@ -176,4 +176,5 @@ resource "azurerm_monitor_diagnostic_setting" "this" {
     category = "AllMetrics"
     enabled  = true
   }
+  depends_on = [time_sleep.wait_for_workspace]
 }

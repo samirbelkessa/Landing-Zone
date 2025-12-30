@@ -135,11 +135,6 @@ variable "deploy_m03_action_groups" {
   default     = false
 }
 
-variable "deploy_m04_alerts" {
-  description = "Deploy M04 Alerts."
-  type        = bool
-  default     = false
-}
 
 variable "deploy_m06_update_management" {
   description = "Deploy M06 Update Management."
@@ -338,3 +333,224 @@ variable "custom_action_groups" {
   }))
   default = {}
 }
+
+#-------------------------------------------------------------------------------
+# M04 - MONITOR ALERTS CONFIGURATION
+# À ajouter dans orchestrator-lza-mng/variables.tf après la section M03
+#-------------------------------------------------------------------------------
+
+variable "deploy_m04_alerts" {
+  description = "Deploy M04 Monitor Alerts module. Requires M01 and M03 to be deployed."
+  type        = bool
+  default     = false
+}
+
+variable "alerts_custom_name_prefix" {
+  description = "Custom name prefix for alerts. Auto-generated via F02 if not provided."
+  type        = string
+  default     = null
+}
+
+variable "create_default_alerts" {
+  description = "Create default platform alerts (Service Health, Resource Health, Activity Log)."
+  type        = bool
+  default     = true
+}
+
+#-------------------------------------------------------------------------------
+# Service Health Alert Configuration
+#-------------------------------------------------------------------------------
+
+variable "service_health_alert_config" {
+  description = "Configuration for Service Health alerts."
+  type = object({
+    enabled     = optional(bool, true)
+    name        = optional(string, "Service Health Alert")
+    description = optional(string, "Alert for Azure service health incidents and maintenance")
+    event_types = optional(list(string), ["Incident", "Maintenance"])
+    regions     = optional(list(string), ["Australia East", "Australia Southeast", "Global"])
+    services    = optional(list(string), [])
+    severity    = optional(string, "critical")
+  })
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Resource Health Alert Configuration
+#-------------------------------------------------------------------------------
+
+variable "resource_health_alert_config" {
+  description = "Configuration for Resource Health alerts."
+  type = object({
+    enabled         = optional(bool, true)
+    name            = optional(string, "Resource Health Alert")
+    description     = optional(string, "Alert for Azure resource health degradation")
+    current_states  = optional(list(string), ["Degraded", "Unavailable"])
+    previous_states = optional(list(string), ["Available"])
+    reason_types    = optional(list(string), ["PlatformInitiated", "Unknown"])
+    severity        = optional(string, "warning")
+  })
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Activity Log Administrative Alert Configuration
+#-------------------------------------------------------------------------------
+
+variable "activity_log_admin_alert_config" {
+  description = "Configuration for Activity Log Administrative alerts (delete operations)."
+  type = object({
+    enabled     = optional(bool, true)
+    name        = optional(string, "Critical Resource Deletion Alert")
+    description = optional(string, "Alert for delete operations on critical resources")
+    operation_names = optional(list(string), [
+      "Microsoft.Resources/subscriptions/resourceGroups/delete",
+      "Microsoft.Compute/virtualMachines/delete",
+      "Microsoft.Sql/servers/delete",
+      "Microsoft.Storage/storageAccounts/delete",
+      "Microsoft.KeyVault/vaults/delete",
+      "Microsoft.Network/virtualNetworks/delete",
+      "Microsoft.RecoveryServices/vaults/delete"
+    ])
+    severity = optional(string, "warning")
+  })
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Activity Log Security Alert Configuration
+#-------------------------------------------------------------------------------
+
+variable "activity_log_security_alert_config" {
+  description = "Configuration for Activity Log Security alerts (policy violations)."
+  type = object({
+    enabled     = optional(bool, true)
+    name        = optional(string, "Security Policy Violation Alert")
+    description = optional(string, "Alert for security-related events and policy violations")
+    operation_names = optional(list(string), [
+      "Microsoft.Authorization/policyAssignments/delete",
+      "Microsoft.Authorization/policyExemptions/write",
+      "Microsoft.Security/securityContacts/delete",
+      "Microsoft.Security/pricings/write"
+    ])
+    categories = optional(list(string), ["Security", "Policy"])
+    severity   = optional(string, "security")
+  })
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Custom Activity Log Alerts
+#-------------------------------------------------------------------------------
+
+variable "custom_activity_log_alerts" {
+  description = "Map of custom Activity Log alerts to create."
+  type = map(object({
+    description    = optional(string, "Custom Activity Log Alert")
+    enabled        = optional(bool, true)
+    scopes         = optional(list(string), [])
+    operation_name = optional(string, null)
+    category       = optional(string, "Administrative")
+    level          = optional(string, null)
+    status         = optional(string, null)
+    severity       = optional(string, "warning")
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Custom Metric Alerts
+#-------------------------------------------------------------------------------
+
+variable "custom_metric_alerts" {
+  description = "Map of custom metric alerts to create. Scopes should reference module outputs."
+  type = map(object({
+    description              = optional(string, "Custom Metric Alert")
+    enabled                  = optional(bool, true)
+    scopes                   = list(string)
+    severity_level           = optional(number, 2)
+    frequency                = optional(string, "PT5M")
+    window_size              = optional(string, "PT15M")
+    auto_mitigate            = optional(bool, true)
+    target_resource_type     = optional(string, null)
+    target_resource_location = optional(string, null)
+    criteria = list(object({
+      metric_namespace        = string
+      metric_name             = string
+      aggregation             = string
+      operator                = string
+      threshold               = number
+      skip_metric_validation  = optional(bool, false)
+      dimension = optional(list(object({
+        name     = string
+        operator = string
+        values   = list(string)
+      })), [])
+    }))
+    dynamic_criteria = optional(list(object({
+      metric_namespace          = string
+      metric_name               = string
+      aggregation               = string
+      operator                  = string
+      alert_sensitivity         = string
+      evaluation_total_count    = optional(number, 4)
+      evaluation_failure_count  = optional(number, 4)
+      ignore_data_before        = optional(string, null)
+      skip_metric_validation    = optional(bool, false)
+    })), [])
+    severity = optional(string, "warning")
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Custom Log Query Alerts
+#-------------------------------------------------------------------------------
+
+variable "custom_log_query_alerts" {
+  description = "Map of custom Log Analytics query alerts to create."
+  type = map(object({
+    description              = optional(string, "Custom Log Query Alert")
+    enabled                  = optional(bool, true)
+    location                 = optional(string, "australiaeast")
+    scopes                   = list(string)
+    severity_level           = optional(number, 2)
+    evaluation_frequency     = optional(string, "PT5M")
+    window_duration          = optional(string, "PT15M")
+    query                    = string
+    threshold                = optional(number, 0)
+    operator                 = optional(string, "GreaterThan")
+    time_aggregation_method  = optional(string, "Count")
+    metric_measure_column    = optional(string, null)
+    resource_id_column       = optional(string, null)
+    auto_mitigation_enabled  = optional(bool, true)
+    skip_query_validation    = optional(bool, false)
+    failing_periods = optional(object({
+      minimum_failing_periods_to_trigger_alert = number
+      number_of_evaluation_periods             = number
+    }), null)
+    severity = optional(string, "warning")
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Severity to Action Group Mapping
+#-------------------------------------------------------------------------------
+
+variable "severity_action_group_mapping" {
+  description = "Custom mapping of severity levels to action group keys from M03."
+  type        = map(string)
+  default = {
+    critical = "critical"
+    high     = "critical"
+    warning  = "warning"
+    medium   = "warning"
+    info     = "info"
+    low      = "info"
+    security = "security"
+    backup   = "backup"
+    network  = "network"
+  }
+}
+

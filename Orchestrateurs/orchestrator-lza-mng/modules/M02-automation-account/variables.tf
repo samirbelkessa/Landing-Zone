@@ -361,7 +361,7 @@ variable "webhooks" {
 variable "enable_diagnostic_settings" {
   description = "Enable diagnostic settings for the Automation Account."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "diagnostic_storage_account_id" {

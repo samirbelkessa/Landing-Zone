@@ -227,12 +227,91 @@ module "m03_action_groups" {
   depends_on = [azurerm_resource_group.management]
 }
 
+################################################################################
+# M04 - Monitor Alerts
+# À ajouter dans orchestrator-lza-mng/main.tf après le module M03
+# Appelle F02 et F03 EN INTERNE (même pattern que M01/M02/M03)
+################################################################################
+
+module "m04_monitor_alerts" {
+  source = "./modules/M04-monitor-alerts"
+  count  = local.m04_can_deploy ? 1 : 0
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming Convention Inputs (passés au module, F02 appelé en interne)
+  #-----------------------------------------------------------------------------
+  workload           = var.project_name
+  environment        = var.environment
+  region             = local.location_abbrev[var.primary_location]
+  instance           = "001"
+  custom_name_prefix = var.alerts_custom_name_prefix
+
+  #-----------------------------------------------------------------------------
+  # F03 Tags Inputs (passés au module, F03 appelé en interne)
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+  additional_tags     = {}
+
+  #-----------------------------------------------------------------------------
+  # Azure Resources
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+
+  # Log Analytics Workspace from M01 (for log query alerts)
+  log_analytics_workspace_id = module.m01_log_analytics[0].id
+
+  #-----------------------------------------------------------------------------
+  # Action Groups from M03 (automatic severity mapping)
+  #-----------------------------------------------------------------------------
+  action_group_ids = module.m03_action_groups[0].outputs_for_m04.action_group_ids
+
+  #-----------------------------------------------------------------------------
+  # Scope Configuration (dynamic - from current subscription)
+  #-----------------------------------------------------------------------------
+  # Uses current subscription by default, override with subscription_ids if needed
+  subscription_ids = []  # Empty = uses current subscription from provider
+
+  #-----------------------------------------------------------------------------
+  # Default Alerts Configuration
+  #-----------------------------------------------------------------------------
+  create_default_alerts = var.create_default_alerts
+
+  service_health_alert_config    = var.service_health_alert_config
+  resource_health_alert_config   = var.resource_health_alert_config
+  activity_log_admin_alert_config   = var.activity_log_admin_alert_config
+  activity_log_security_alert_config = var.activity_log_security_alert_config
+
+  #-----------------------------------------------------------------------------
+  # Custom Alerts
+  #-----------------------------------------------------------------------------
+  custom_activity_log_alerts = var.custom_activity_log_alerts
+  custom_metric_alerts       = var.custom_metric_alerts
+  custom_log_query_alerts    = var.custom_log_query_alerts
+
+  #-----------------------------------------------------------------------------
+  # Severity Mapping
+  #-----------------------------------------------------------------------------
+  severity_action_group_mapping = var.severity_action_group_mapping
+
+  #-----------------------------------------------------------------------------
+  # Dependencies
+  #-----------------------------------------------------------------------------
+  depends_on = [
+    module.m01_log_analytics,
+    module.m03_action_groups
+  ]
+}
 
 ################################################################################
 # Placeholder modules for future phases (M03-M08)
 ################################################################################
 
-# M03 - Action Groups
 # M04 - Alerts
 # M05 - Diagnostic Settings (generic module)
 # M06 - Update Management

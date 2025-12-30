@@ -250,7 +250,15 @@ resource "azurerm_automation_webhook" "webhooks" {
 # Diagnostic Settings
 #-------------------------------------------------------------------------------
 
+# Attendre que les politiques Azure aient fini
+resource "time_sleep" "wait_for_policies" {
+  depends_on = [azurerm_automation_account.this]
+  
+  create_duration = "120s" # Attendre 2 minutes
+}
+
 resource "azurerm_monitor_diagnostic_setting" "this" {
+  depends_on = [time_sleep.wait_for_policies]
   count = var.enable_diagnostic_settings ? 1 : 0
 
   name                       = "diag-${local.automation_account_name}"
