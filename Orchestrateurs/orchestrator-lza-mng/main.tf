@@ -108,7 +108,7 @@ module "m01_log_analytics" {
   secondary_retention_in_days   = 30
 
   # Diagnostic Settings
-  enable_diagnostic_settings = true
+  enable_diagnostic_settings = false
 
   depends_on = [azurerm_resource_group.management]
 }
@@ -170,7 +170,7 @@ module "m02_automation_account" {
   schedules = local.default_schedules
 
   # Diagnostic settings
-  enable_diagnostic_settings = true
+  enable_diagnostic_settings = false
 
   depends_on = [module.m01_log_analytics]
 }
@@ -307,13 +307,57 @@ module "m04_monitor_alerts" {
     module.m03_action_groups
   ]
 }
+# M05 - Diagnostic Settings (generic module)
+# Diagnostic settings for Log Analytics Workspace
+# ============================================================================
+# DIAGNOSTIC SETTINGS (M05)
+# ============================================================================
+
+# Diagnostic settings for Log Analytics Workspace
+module "law_diagnostics" {
+  count  = var.enable_diagnostic_settings && var.diagnostic_settings_config != null ? 1 : 0
+  source = "./modules/M05-diagnostic-settings"
+
+  target_resource_id         = module.m01_log_analytics[0].id
+  name                       = "diag-${module.m01_log_analytics[0].name}"
+  log_analytics_workspace_id = module.m01_log_analytics[0].id
+  storage_account_id         = var.diagnostic_settings_config.storage_account_id
+
+  log_analytics_destination_type = var.diagnostic_settings_config.log_analytics_destination_type
+  logs_retention_days            = var.diagnostic_settings_config.logs_retention_days
+  metrics_retention_days         = var.diagnostic_settings_config.metrics_retention_days
+
+  # Utilisation des tags exposés par M01
+  tags = module.m01_log_analytics[0].tags
+
+  depends_on = [module.m01_log_analytics]
+}
+
+# Diagnostic settings for Automation Account
+module "automation_diagnostics" {
+  count  = var.enable_diagnostic_settings && var.diagnostic_settings_config != null ? 1 : 0
+  source = "./modules/M05-diagnostic-settings"
+
+  target_resource_id         = module.m02_automation_account[0].id
+  name                       = "diag-${module.m02_automation_account[0].name}"
+  log_analytics_workspace_id = module.m01_log_analytics[0].id
+  storage_account_id         = var.diagnostic_settings_config.storage_account_id
+
+  log_analytics_destination_type = var.diagnostic_settings_config.log_analytics_destination_type
+  logs_retention_days            = var.diagnostic_settings_config.logs_retention_days
+  metrics_retention_days         = var.diagnostic_settings_config.metrics_retention_days
+
+  # Utilisation des tags exposés par M02
+  tags = module.m02_automation_account[0].tags
+
+  depends_on = [module.m02_automation_account]
+}
 
 ################################################################################
 # Placeholder modules for future phases (M03-M08)
 ################################################################################
 
-# M04 - Alerts
-# M05 - Diagnostic Settings (generic module)
+
 # M06 - Update Management
 # M07 - Data Collection Rules
 # M08 - Diagnostics Storage Account

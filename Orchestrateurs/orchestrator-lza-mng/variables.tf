@@ -357,6 +357,31 @@ variable "create_default_alerts" {
   default     = true
 }
 
+
+# ============================================================================
+# DIAGNOSTIC SETTINGS (Optional)
+# ============================================================================
+
+variable "enable_diagnostic_settings" {
+  description = "Enable diagnostic settings for management resources"
+  type        = bool
+  default     = true
+}
+
+variable "diagnostic_settings_config" {
+  description = "Configuration for diagnostic settings on management resources"
+  type = object({
+    
+    storage_account_id             = optional(string)
+    log_analytics_destination_type = optional(string, "Dedicated")
+    logs_retention_days            = optional(number, 90)
+    metrics_retention_days         = optional(number, 90)
+  })
+  default = null
+}
+
+
+
 #-------------------------------------------------------------------------------
 # Service Health Alert Configuration
 #-------------------------------------------------------------------------------

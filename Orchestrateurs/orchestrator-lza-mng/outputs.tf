@@ -127,13 +127,14 @@ output "m02_linked_service_id" {
 output "deployment_status" {
   description = "Status of each module deployment."
   value = {
-    m01_log_analytics       = var.deploy_m01_log_analytics ? "deployed" : "skipped"
-    m02_automation_account  = local.m02_can_deploy ? "deployed" : (var.deploy_m02_automation ? "blocked_missing_m01" : "skipped")
-    m03_action_groups       = local.m03_can_deploy ? "deployed" : "skipped"  # ← MODIFIÉ
-    m04_alerts = local.m04_can_deploy ? "deployed" : (var.deploy_m04_alerts ? "blocked_missing_deps" : "skipped")
-    m06_update_management   = local.m06_can_deploy ? "deployed" : (var.deploy_m06_update_management ? "blocked_missing_deps" : "skipped")
-    m07_dcr                 = local.m07_can_deploy ? "deployed" : (var.deploy_m07_dcr ? "blocked_missing_m01" : "skipped")
-    m08_diagnostics_storage = var.deploy_m08_diagnostics_storage ? "deployed" : "skipped"
+    m01_log_analytics        = var.deploy_m01_log_analytics ? "deployed" : "skipped"
+    m02_automation_account   = local.m02_can_deploy ? "deployed" : (var.deploy_m02_automation ? "blocked_missing_m01" : "skipped")
+    m03_action_groups        = local.m03_can_deploy ? "deployed" : "skipped"
+    m04_alerts               = local.m04_can_deploy ? "deployed" : (var.deploy_m04_alerts ? "blocked_missing_deps" : "skipped")
+    m05_diagnostic_settings  = var.enable_diagnostic_settings && var.diagnostic_settings_config != null ? "deployed" : "skipped"  # ← AJOUTE
+    m06_update_management    = local.m06_can_deploy ? "deployed" : (var.deploy_m06_update_management ? "blocked_missing_deps" : "skipped")
+    m07_dcr                  = local.m07_can_deploy ? "deployed" : (var.deploy_m07_dcr ? "blocked_missing_m01" : "skipped")
+    m08_diagnostics_storage  = var.deploy_m08_diagnostics_storage ? "deployed" : "skipped"
   }
 }
 
@@ -330,4 +331,26 @@ output "m04_alert_count" {
 output "m04_configuration" {
   description = "Complete configuration summary of M04 deployment."
   value       = try(module.m04_monitor_alerts[0].configuration, null)
+}
+
+#-------------------------------------------------------------------------------
+# M05 - Diagnostic Settings
+#-------------------------------------------------------------------------------
+
+output "m05_law_diagnostics_id" {
+  description = "Diagnostic setting ID for Log Analytics Workspace"
+  value       = try(module.law_diagnostics[0].id, null)
+}
+
+output "m05_automation_diagnostics_id" {
+  description = "Diagnostic setting ID for Automation Account"
+  value       = try(module.automation_diagnostics[0].id, null)
+}
+
+output "m05_diagnostic_settings_names" {
+  description = "Names of diagnostic settings created"
+  value = {
+    law        = try(module.law_diagnostics[0].name, null)
+    automation = try(module.automation_diagnostics[0].name, null)
+  }
 }
