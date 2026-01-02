@@ -433,10 +433,47 @@ module "m06_update_management" {
 }
 
 ################################################################################
-# Placeholder modules for future phases (M03-M08)
+# M07 - DATA COLLECTION RULES
 ################################################################################
 
+module "m07_data_collection_rules" {
+  count  = var.deploy_m07_dcr ? 1 : 0
+  source = "./modules/M07-data-collection-rules"
+  
+  #-----------------------------------------------------------------------------
+  # DCR Configurations
+  #-----------------------------------------------------------------------------
+  
+  # Use the 10 recommended DCRs + any custom configurations
+  data_collection_rules = local.all_dcr_configurations
+  
+  #-----------------------------------------------------------------------------
+  # Associations (disabled by default - use Azure Policy G03)
+  #-----------------------------------------------------------------------------
+  
+  enable_associations = var.enable_dcr_associations
+  
+  # Manual associations only for brownfield scenarios
+  data_collection_rule_associations = var.enable_dcr_associations ? {} : {}
+  
+  #-----------------------------------------------------------------------------
+  # Tags (inherited from M01)
+  #-----------------------------------------------------------------------------
+  
+  tags = local.dcr_tags
+  
+  #-----------------------------------------------------------------------------
+  # Dependencies
+  #-----------------------------------------------------------------------------
+  
+  depends_on = [
+    azurerm_resource_group.management,
+    module.m01_log_analytics
+  ]
+}
 
-# M06 - Update Management
-# M07 - Data Collection Rules
+################################################################################
+# Placeholder for future modules (M08)
+################################################################################
+
 # M08 - Diagnostics Storage Account

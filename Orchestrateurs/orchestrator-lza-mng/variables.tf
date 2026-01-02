@@ -177,12 +177,6 @@ variable "deploy_m06_update_management" {
   default     = false
 }
 
-variable "deploy_m07_dcr" {
-  description = "Deploy M07 Data Collection Rules."
-  type        = bool
-  default     = false
-}
-
 variable "deploy_m08_diagnostics_storage" {
   description = "Deploy M08 Diagnostics Storage Account."
   type        = bool
@@ -447,6 +441,97 @@ variable "dynamic_scope_assignments" {
 
 variable "update_management_additional_tags" {
   description = "Additional tags for Update Management resources."
+  type        = map(string)
+  default     = {}
+}
+
+#===============================================================================
+# M07 - DATA COLLECTION RULES CONFIGURATION
+#===============================================================================
+
+variable "deploy_m07_dcr" {
+  description = "Deploy M07 Data Collection Rules. Requires M01."
+  type        = bool
+  default     = false
+}
+
+variable "enable_dcr_associations" {
+  description = <<-EOT
+    Enable manual DCR associations to VMs.
+    Set to false for new Landing Zones (use Azure Policy G03 instead).
+    Set to true for brownfield environments with existing VMs.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "dcr_custom_configurations" {
+  description = <<-EOT
+    Optional custom DCR configurations to merge with the 10 recommended DCRs.
+    Use this to add additional DCRs without modifying locals.
+    Structure matches var.data_collection_rules in M07 module.
+  EOT
+  type        = any
+  default     = {}
+}
+
+variable "disable_default_dcrs" {
+  description = <<-EOT
+    Disable the 10 recommended default DCRs.
+    Set to true if you want to use only custom DCRs via var.dcr_custom_configurations.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "dcr_windows_perf_sampling_frequency" {
+  description = "Sampling frequency in seconds for Windows performance counters (60-3600)."
+  type        = number
+  default     = 60
+  
+  validation {
+    condition     = var.dcr_windows_perf_sampling_frequency >= 60 && var.dcr_windows_perf_sampling_frequency <= 3600
+    error_message = "Sampling frequency must be between 60 and 3600 seconds."
+  }
+}
+
+variable "dcr_linux_perf_sampling_frequency" {
+  description = "Sampling frequency in seconds for Linux performance counters (60-3600)."
+  type        = number
+  default     = 60
+  
+  validation {
+    condition     = var.dcr_linux_perf_sampling_frequency >= 60 && var.dcr_linux_perf_sampling_frequency <= 3600
+    error_message = "Sampling frequency must be between 60 and 3600 seconds."
+  }
+}
+
+variable "enable_dcr_cost_optimization" {
+  description = <<-EOT
+    Enable KQL transformations in DCRs to filter data before ingestion.
+    Reduces Log Analytics costs by 30-50% but may filter out some events.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "dcr_iis_log_directories" {
+  description = "IIS log directories to monitor for DCR #7 (Windows IIS Logs)."
+  type        = list(string)
+  default     = ["C:\\inetpub\\logs\\LogFiles"]
+}
+
+variable "dcr_custom_app_log_patterns" {
+  description = "File patterns for custom application logs (DCR #10)."
+  type        = list(string)
+  default = [
+    "C:\\Logs\\myapp\\*.log",
+    "C:\\AppLogs\\*.txt"
+  ]
+}
+
+variable "dcr_additional_tags" {
+  description = "Additional tags to apply to all DCR resources (merged with M01 tags)."
   type        = map(string)
   default     = {}
 }

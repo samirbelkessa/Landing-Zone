@@ -377,3 +377,36 @@ output "m06_update_management" {
     configuration                 = null
   }
 }
+
+#===============================================================================
+# M07 - DATA COLLECTION RULES OUTPUTS
+#===============================================================================
+
+output "m07_dcr_ids" {
+  description = "Map of DCR names to resource IDs from M07 module."
+  value       = var.deploy_m07_dcr ? module.m07_data_collection_rules[0].dcr_ids : {}
+}
+
+output "m07_dcr_immutable_ids" {
+  description = "Map of DCR names to immutable IDs from M07 module."
+  value       = var.deploy_m07_dcr ? module.m07_data_collection_rules[0].dcr_immutable_ids : {}
+}
+
+output "m07_outputs_for_g03" {
+  description = "M07 outputs for G03 Policy Assignments (VM Insights DCR IDs)."
+  value       = var.deploy_m07_dcr ? module.m07_data_collection_rules[0].outputs_for_g03 : {
+    vm_insights_windows_dcr_id = null
+    vm_insights_linux_dcr_id   = null
+    all_dcr_ids                = {}
+  }
+}
+
+output "m07_configuration" {
+  description = "M07 DCR deployment configuration summary."
+  value       = var.deploy_m07_dcr ? module.m07_data_collection_rules[0].configuration : null
+}
+
+output "m07_dcr_ready" {
+  description = "Indicates M07 DCRs are ready for use by dependent modules."
+  value       = var.deploy_m07_dcr ? module.m07_data_collection_rules[0].ready : false
+}
