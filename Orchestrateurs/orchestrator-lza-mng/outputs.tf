@@ -354,3 +354,26 @@ output "m05_diagnostic_settings_names" {
     automation = try(module.automation_diagnostics[0].name, null)
   }
 }
+
+#===============================================================================
+# M06 - UPDATE MANAGEMENT OUTPUTS
+#===============================================================================
+
+output "m06_update_management" {
+  description = "M06 Update Management module outputs."
+  value = var.deploy_m06_update_management ? {
+    deployed                      = true
+    generated_name                = module.m06_update_management[0].generated_name
+    maintenance_configuration_ids = module.m06_update_management[0].maintenance_configuration_ids
+    windows_configurations        = module.m06_update_management[0].windows_configurations
+    linux_configurations          = module.m06_update_management[0].linux_configurations
+    configuration                 = module.m06_update_management[0].configuration
+  } : {
+    deployed                      = false
+    generated_name                = null
+    maintenance_configuration_ids = {}
+    windows_configurations        = []
+    linux_configurations          = []
+    configuration                 = null
+  }
+}

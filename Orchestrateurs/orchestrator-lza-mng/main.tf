@@ -353,6 +353,85 @@ module "automation_diagnostics" {
   depends_on = [module.m02_automation_account]
 }
 
+
+################################################################################
+# M06 - UPDATE MANAGEMENT (AZURE UPDATE MANAGER)
+################################################################################
+
+module "m06_update_management" {
+  count  = var.deploy_m06_update_management ? 1 : 0
+  source = "./modules/M06-update-management"
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming Convention inputs
+  #-----------------------------------------------------------------------------
+  workload    = var.workload
+  environment = var.environment
+  region      = var.region
+  instance    = var.instance
+
+  # Optional: Custom name override (bypasses F02)
+  custom_name_prefix = var.update_management_custom_name_prefix
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+  location            = var.primary_location
+
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # Maintenance Configurations
+  #-----------------------------------------------------------------------------
+  maintenance_configurations    = var.maintenance_configurations
+  create_default_windows_config = var.create_default_windows_config
+  create_default_linux_config   = var.create_default_linux_config
+
+  #-----------------------------------------------------------------------------
+  # VM Assignments
+  #-----------------------------------------------------------------------------
+  vm_assignments            = var.vm_assignments
+  dynamic_scope_assignments = var.dynamic_scope_assignments
+
+  #-----------------------------------------------------------------------------
+  # Default Settings
+  #-----------------------------------------------------------------------------
+  default_timezone         = var.default_timezone
+  default_target_locations = var.update_target_locations
+
+  #-----------------------------------------------------------------------------
+  # Module Integration (Optional)
+  #-----------------------------------------------------------------------------
+  log_analytics_workspace_id = var.deploy_m01_log_analytics ? module.m01_log_analytics[0].id : null
+  
+  action_group_ids = var.deploy_m03_action_groups ? {
+    critical = module.m03_action_groups[0].action_group_ids["critical"]
+    warning  = module.m03_action_groups[0].action_group_ids["warning"]
+    info     = module.m03_action_groups[0].action_group_ids["info"]
+  } : {}
+
+  additional_tags = var.update_management_additional_tags
+
+  #-----------------------------------------------------------------------------
+  # Dependencies
+  #-----------------------------------------------------------------------------
+  depends_on = [
+    azurerm_resource_group.management,
+    module.m01_log_analytics,
+    module.m03_action_groups
+  ]
+}
+
 ################################################################################
 # Placeholder modules for future phases (M03-M08)
 ################################################################################

@@ -59,6 +59,41 @@ variable "create_resource_group" {
   default     = true
 }
 
+#===============================================================================
+# F02 - NAMING CONVENTION INPUTS (Shared across ALL modules)
+#===============================================================================
+
+variable "workload" {
+  description = "Workload name for F02 naming convention (e.g., 'platform', 'app')."
+  type        = string
+
+  validation {
+    condition     = length(var.workload) >= 2 && length(var.workload) <= 10
+    error_message = "Workload must be between 2 and 10 characters."
+  }
+}
+
+variable "region" {
+  description = "Azure region abbreviation for F02 naming (e.g., 'aue' for Australia East)."
+  type        = string
+  default     = "aue"
+
+  validation {
+    condition     = length(var.region) >= 2 && length(var.region) <= 4
+    error_message = "Region abbreviation must be between 2 and 4 characters."
+  }
+}
+
+variable "instance" {
+  description = "Instance number for F02 naming convention (e.g., '001', '002')."
+  type        = string
+  default     = "001"
+
+  validation {
+    condition     = can(regex("^[0-9]{3}$", var.instance))
+    error_message = "Instance must be a 3-digit number (e.g., '001')."
+  }
+}
 #-------------------------------------------------------------------------------
 # TAGGING - F03 Required Inputs
 #-------------------------------------------------------------------------------
@@ -357,6 +392,64 @@ variable "create_default_alerts" {
   default     = true
 }
 
+
+#===============================================================================
+# M06 - UPDATE MANAGEMENT CONFIGURATION
+#===============================================================================
+
+variable "update_management_custom_name_prefix" {
+  description = "Custom name prefix for M06 (bypasses F02 if set)."
+  type        = string
+  default     = null
+}
+
+variable "create_default_windows_config" {
+  description = "Create default Windows Maintenance Configuration."
+  type        = bool
+  default     = false
+}
+
+variable "create_default_linux_config" {
+  description = "Create default Linux Maintenance Configuration."
+  type        = bool
+  default     = false
+}
+
+variable "default_timezone" {
+  description = "Default timezone for maintenance windows."
+  type        = string
+  default     = "UTC"
+}
+
+variable "update_target_locations" {
+  description = "Default Azure regions to target for updates."
+  type        = list(string)
+  default     = []
+}
+
+variable "maintenance_configurations" {
+  description = "Map of custom Maintenance Configurations."
+  type        = any
+  default     = {}
+}
+
+variable "vm_assignments" {
+  description = "Map of static VM assignments."
+  type        = any
+  default     = {}
+}
+
+variable "dynamic_scope_assignments" {
+  description = "Map of dynamic scope assignments."
+  type        = any
+  default     = {}
+}
+
+variable "update_management_additional_tags" {
+  description = "Additional tags for Update Management resources."
+  type        = map(string)
+  default     = {}
+}
 
 # ============================================================================
 # DIAGNOSTIC SETTINGS (Optional)
