@@ -410,3 +410,70 @@ output "m07_dcr_ready" {
   description = "Indicates M07 DCRs are ready for use by dependent modules."
   value       = var.deploy_m07_dcr ? module.m07_data_collection_rules[0].ready : false
 }
+
+#===============================================================================
+# M08 - DIAGNOSTICS STORAGE ACCOUNT OUTPUTS
+#===============================================================================
+
+output "m08_diagnostics_storage_id" {
+  description = "ID of the diagnostics storage account."
+  value       = var.deploy_m08_diagnostics_storage ? module.m08_diagnostics_storage[0].id : null
+}
+
+output "m08_diagnostics_storage_name" {
+  description = "Name of the diagnostics storage account."
+  value       = var.deploy_m08_diagnostics_storage ? module.m08_diagnostics_storage[0].name : null
+}
+
+output "m08_diagnostics_storage_primary_blob_endpoint" {
+  description = "Primary blob endpoint of the diagnostics storage account."
+  value       = var.deploy_m08_diagnostics_storage ? module.m08_diagnostics_storage[0].primary_blob_endpoint : null
+}
+
+output "m08_diagnostics_storage" {
+  description = "M08 Diagnostics Storage Account module outputs."
+  value = var.deploy_m08_diagnostics_storage ? {
+    deployed               = true
+    id                     = module.m08_diagnostics_storage[0].id
+    name                   = module.m08_diagnostics_storage[0].name
+    primary_blob_endpoint  = module.m08_diagnostics_storage[0].primary_blob_endpoint
+    primary_access_key     = module.m08_diagnostics_storage[0].primary_access_key
+    secondary_access_key   = module.m08_diagnostics_storage[0].secondary_access_key
+    container_ids          = module.m08_diagnostics_storage[0].container_ids
+    configuration          = module.m08_diagnostics_storage[0].configuration
+  } : {
+    deployed               = false
+    id                     = null
+    name                   = null
+    primary_blob_endpoint  = null
+    primary_access_key     = null
+    secondary_access_key   = null
+    container_ids          = {}
+    configuration          = null
+  }
+  sensitive = true
+}
+
+output "m08_naming_details" {
+  description = "M08 naming details from F02."
+  value       = var.deploy_m08_diagnostics_storage ? module.m08_diagnostics_storage[0].naming_details : null
+}
+
+output "m08_tags" {
+  description = "M08 tags from F03."
+  value       = var.deploy_m08_diagnostics_storage ? module.m08_diagnostics_storage[0].tags : null
+}
+
+#-------------------------------------------------------------------------------
+# M08 Self-Diagnostics Outputs
+#-------------------------------------------------------------------------------
+
+output "m08_self_diagnostics_id" {
+  description = "Diagnostic setting ID for M08 Storage Account."
+  value       = try(module.m08_self_diagnostics[0].id, null)
+}
+
+output "m08_blob_diagnostics_id" {
+  description = "Diagnostic setting ID for M08 Blob Service."
+  value       = try(module.m08_blob_diagnostics[0].id, null)
+}

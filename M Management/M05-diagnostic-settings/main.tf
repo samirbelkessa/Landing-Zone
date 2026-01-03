@@ -31,12 +31,6 @@ resource "azurerm_monitor_diagnostic_setting" "this" {
 
     content {
       category = enabled_log.value
-
-      # Retention policy (only applies to Storage Account destination)
-      retention_policy {
-        enabled = var.storage_account_id != null ? true : false
-        days    = var.storage_account_id != null ? var.logs_retention_days : 0
-      }
     }
   }
 
@@ -47,12 +41,6 @@ resource "azurerm_monitor_diagnostic_setting" "this" {
     content {
       category = metric.value
       enabled  = true
-
-      # Retention policy (only applies to Storage Account destination)
-      retention_policy {
-        enabled = var.storage_account_id != null ? true : false
-        days    = var.storage_account_id != null ? var.metrics_retention_days : 0
-      }
     }
   }
 

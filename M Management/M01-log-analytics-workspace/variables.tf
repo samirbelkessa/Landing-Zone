@@ -317,7 +317,7 @@ variable "secondary_retention_in_days" {
 variable "enable_diagnostic_settings" {
   description = "Enable diagnostic settings for the workspace itself."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "diagnostic_storage_account_id" {

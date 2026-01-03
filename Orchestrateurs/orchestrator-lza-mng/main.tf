@@ -106,11 +106,15 @@ module "m01_log_analytics" {
   enable_cross_region_workspace = var.enable_log_analytics_dr
   secondary_location            = var.secondary_location
   secondary_retention_in_days   = 30
-
+   
   # Diagnostic Settings
-  enable_diagnostic_settings = false
+  enable_diagnostic_settings    = var.deploy_m08_diagnostics_storage && var.enable_m01_archive_to_storage
+  diagnostic_storage_account_id = var.deploy_m08_diagnostics_storage ? module.m08_diagnostics_storage[0].id : null
 
-  depends_on = [azurerm_resource_group.management]
+  depends_on = [
+    azurerm_resource_group.management,
+    module.m08_diagnostics_storage
+  ]
 }
 
 ################################################################################
@@ -321,8 +325,8 @@ module "law_diagnostics" {
   target_resource_id         = module.m01_log_analytics[0].id
   name                       = "diag-${module.m01_log_analytics[0].name}"
   log_analytics_workspace_id = module.m01_log_analytics[0].id
-  storage_account_id         = var.diagnostic_settings_config.storage_account_id
-
+  #storage_account_id         = var.diagnostic_settings_config.storage_account_id
+  storage_account_id = var.deploy_m08_diagnostics_storage ? module.m08_diagnostics_storage[0].id : var.diagnostic_settings_config.storage_account_id 
   log_analytics_destination_type = var.diagnostic_settings_config.log_analytics_destination_type
   logs_retention_days            = var.diagnostic_settings_config.logs_retention_days
   metrics_retention_days         = var.diagnostic_settings_config.metrics_retention_days
@@ -330,7 +334,10 @@ module "law_diagnostics" {
   # Utilisation des tags exposés par M01
   tags = module.m01_log_analytics[0].tags
 
-  depends_on = [module.m01_log_analytics]
+  depends_on = [
+    module.m01_log_analytics,
+    module.m08_diagnostics_storage
+  ]
 }
 
 # Diagnostic settings for Automation Account
@@ -472,8 +479,167 @@ module "m07_data_collection_rules" {
   ]
 }
 
+
+
+
 ################################################################################
 # Placeholder for future modules (M08)
 ################################################################################
+################################################################################
+# M08 - DIAGNOSTICS STORAGE ACCOUNT
+################################################################################
 
-# M08 - Diagnostics Storage Account
+module "m08_diagnostics_storage" {
+  count  = local.m08_can_deploy ? 1 : 0
+  source = "./modules/M08-diagnostics-storage-account"
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming Convention inputs
+  #-----------------------------------------------------------------------------
+  workload    = var.workload
+  environment = var.environment
+  region      = var.region
+  instance    = var.instance
+
+  # Optional: Custom name override (bypasses F02)
+  custom_name = var.diagnostics_storage_custom_name
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
+  resource_group_name = var.resource_group_name
+  location            = var.primary_location
+
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # Storage Account Configuration
+  #-----------------------------------------------------------------------------
+  account_tier     = var.diagnostics_storage_account_tier
+  replication_type = var.diagnostics_storage_replication_type
+  account_kind     = var.diagnostics_storage_account_kind
+  access_tier      = var.diagnostics_storage_access_tier
+  min_tls_version  = var.diagnostics_storage_min_tls_version
+
+  #-----------------------------------------------------------------------------
+  # Security Configuration
+  #-----------------------------------------------------------------------------
+  https_traffic_only_enabled        = true
+  allow_nested_items_to_be_public   = false
+  shared_access_key_enabled         = var.diagnostics_storage_shared_access_key_enabled
+  public_network_access_enabled     = var.diagnostics_storage_public_network_access
+  default_to_oauth_authentication   = true
+  infrastructure_encryption_enabled = var.diagnostics_storage_infrastructure_encryption
+
+  #-----------------------------------------------------------------------------
+  # Network Rules (Optional)
+  #-----------------------------------------------------------------------------
+  network_rules = var.diagnostics_storage_network_rules
+
+  #-----------------------------------------------------------------------------
+  # Blob Properties
+  #-----------------------------------------------------------------------------
+  blob_soft_delete_retention_days      = var.diagnostics_storage_blob_retention_days
+  container_soft_delete_retention_days = var.diagnostics_storage_container_retention_days
+  enable_versioning                    = var.diagnostics_storage_versioning_enabled
+  enable_change_feed                   = var.diagnostics_storage_change_feed_enabled
+  change_feed_retention_in_days        = var.diagnostics_storage_change_feed_retention_days
+
+  #-----------------------------------------------------------------------------
+  # Containers Configuration
+  #-----------------------------------------------------------------------------
+  create_default_containers   = var.diagnostics_storage_create_default_containers
+  additional_containers       = var.diagnostics_storage_additional_containers
+  default_container_access_type = "private"
+
+  #-----------------------------------------------------------------------------
+  # Lifecycle Management
+  #-----------------------------------------------------------------------------
+  enable_lifecycle_management          = var.diagnostics_storage_enable_lifecycle
+  lifecycle_rules                      = var.diagnostics_storage_lifecycle_rules
+  default_lifecycle_tier_to_cool_days    = var.diagnostics_storage_tier_to_cool_days
+  default_lifecycle_tier_to_archive_days = var.diagnostics_storage_tier_to_archive_days
+  default_lifecycle_delete_days          = var.diagnostics_storage_delete_days
+
+  #-----------------------------------------------------------------------------
+  # Diagnostic Settings (send to M01)
+  #-----------------------------------------------------------------------------
+  enable_diagnostic_settings   = false
+  log_analytics_workspace_id   = null
+  diagnostic_logs_retention_days = 90
+
+  #-----------------------------------------------------------------------------
+  # Additional Tags
+  #-----------------------------------------------------------------------------
+  additional_tags = var.diagnostics_storage_additional_tags
+
+  #-----------------------------------------------------------------------------
+  # Dependencies
+  #-----------------------------------------------------------------------------
+  depends_on = [
+    azurerm_resource_group.management,
+    #module.m01_log_analytics
+  ]
+}
+
+################################################################################
+# M08 SELF-DIAGNOSTICS (Phase 2)
+# Envoie les diagnostics du Storage Account vers M01
+################################################################################
+
+module "m08_self_diagnostics" {
+  count  = local.m08_self_diagnostics_can_deploy ? 1 : 0
+  source = "./modules/M05-diagnostic-settings"
+
+  target_resource_id             = module.m08_diagnostics_storage[0].id
+  name                           = "diag-${module.m08_diagnostics_storage[0].name}"
+  log_analytics_workspace_id     = module.m01_log_analytics[0].id
+  log_analytics_destination_type = "Dedicated"
+
+  enabled_log_categories    = null
+  enabled_metric_categories = ["Transaction", "Capacity"]
+  logs_retention_days       = 90
+  metrics_retention_days    = 90
+
+  tags = module.m08_diagnostics_storage[0].tags
+
+  depends_on = [
+    module.m01_log_analytics,
+    module.m08_diagnostics_storage
+  ]
+}
+
+################################################################################
+# M08 BLOB SERVICE DIAGNOSTICS (Phase 2)
+################################################################################
+
+module "m08_blob_diagnostics" {
+  count  = local.m08_self_diagnostics_can_deploy ? 1 : 0
+  source = "./modules/M05-diagnostic-settings"
+
+  target_resource_id             = "${module.m08_diagnostics_storage[0].id}/blobServices/default"
+  name                           = "diag-${module.m08_diagnostics_storage[0].name}-blob"
+  log_analytics_workspace_id     = module.m01_log_analytics[0].id
+  log_analytics_destination_type = "Dedicated"
+
+  enabled_log_categories    = ["StorageRead", "StorageWrite", "StorageDelete"]
+  enabled_metric_categories = ["Transaction", "Capacity"]
+  logs_retention_days       = 90
+  metrics_retention_days    = 90
+
+  tags = module.m08_diagnostics_storage[0].tags
+
+  depends_on = [
+    module.m01_log_analytics,
+    module.m08_diagnostics_storage
+  ]
+}

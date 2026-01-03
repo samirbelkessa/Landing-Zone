@@ -757,3 +757,200 @@ variable "severity_action_group_mapping" {
   }
 }
 
+#===============================================================================
+# M08 - DIAGNOSTICS STORAGE ACCOUNT CONFIGURATION
+#===============================================================================
+
+variable "diagnostics_storage_custom_name" {
+  description = "Custom name for Storage Account (bypasses F02 if set). Must be 3-24 chars, lowercase alphanumeric only."
+  type        = string
+  default     = null
+}
+
+#-------------------------------------------------------------------------------
+# Storage Account Settings
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_account_tier" {
+  description = "Storage account tier: Standard or Premium."
+  type        = string
+  default     = "Standard"
+}
+
+variable "diagnostics_storage_replication_type" {
+  description = "Storage replication type: LRS, GRS, RAGRS, ZRS. Null = auto (GRS for prod, LRS for non-prod)."
+  type        = string
+  default     = null
+}
+
+variable "diagnostics_storage_account_kind" {
+  description = "Storage account kind: StorageV2, BlobStorage, Storage."
+  type        = string
+  default     = "StorageV2"
+}
+
+variable "diagnostics_storage_access_tier" {
+  description = "Storage access tier: Hot or Cool."
+  type        = string
+  default     = "Hot"
+}
+
+variable "diagnostics_storage_min_tls_version" {
+  description = "Minimum TLS version for storage account."
+  type        = string
+  default     = "TLS1_2"
+}
+
+#-------------------------------------------------------------------------------
+# Security Settings
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_shared_access_key_enabled" {
+  description = "Enable shared access key authentication."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_public_network_access" {
+  description = "Enable public network access to storage account."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_infrastructure_encryption" {
+  description = "Enable double encryption at infrastructure level."
+  type        = bool
+  default     = false
+}
+
+variable "diagnostics_storage_network_rules" {
+  description = "Network rules for storage account."
+  type = object({
+    default_action             = optional(string, "Deny")
+    bypass                     = optional(list(string), ["AzureServices", "Logging", "Metrics"])
+    ip_rules                   = optional(list(string), [])
+    virtual_network_subnet_ids = optional(list(string), [])
+  })
+  default = null
+}
+
+#-------------------------------------------------------------------------------
+# Blob Properties
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_blob_retention_days" {
+  description = "Number of days to retain deleted blobs (soft delete). 0 to disable."
+  type        = number
+  default     = 7
+}
+
+variable "diagnostics_storage_container_retention_days" {
+  description = "Number of days to retain deleted containers (soft delete). 0 to disable."
+  type        = number
+  default     = 7
+}
+
+variable "diagnostics_storage_versioning_enabled" {
+  description = "Enable blob versioning."
+  type        = bool
+  default     = false
+}
+
+variable "diagnostics_storage_change_feed_enabled" {
+  description = "Enable blob change feed."
+  type        = bool
+  default     = false
+}
+
+variable "diagnostics_storage_change_feed_retention_days" {
+  description = "Days to retain change feed data."
+  type        = number
+  default     = 7
+}
+
+#-------------------------------------------------------------------------------
+# Containers
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_create_default_containers" {
+  description = "Create default diagnostic containers (bootdiagnostics, insights-logs, etc.)."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_additional_containers" {
+  description = "Map of additional containers to create."
+  type = map(object({
+    container_access_type = optional(string, "private")
+    metadata              = optional(map(string), {})
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Lifecycle Management
+#-------------------------------------------------------------------------------
+
+
+
+variable "enable_m01_archive_to_storage" {
+  description = "Archive M01 Log Analytics logs to M08 Storage Account."
+  type        = bool
+  default     = true
+}
+
+variable "enable_m08_self_diagnostics" {
+  description = "Send M08 Storage Account diagnostics to M01 Log Analytics (Phase 2)."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_enable_lifecycle" {
+  description = "Enable blob lifecycle management policies."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_tier_to_cool_days" {
+  description = "Days before tiering blobs from Hot to Cool tier."
+  type        = number
+  default     = 30
+}
+
+variable "diagnostics_storage_tier_to_archive_days" {
+  description = "Days before tiering blobs from Cool to Archive tier."
+  type        = number
+  default     = 90
+}
+
+variable "diagnostics_storage_delete_days" {
+  description = "Days before deleting blobs. 400 = ~1.1 years (per client requirements)."
+  type        = number
+  default     = 400
+}
+
+variable "diagnostics_storage_lifecycle_rules" {
+  description = "Custom lifecycle rules. If empty, default rules will be used."
+  type = map(object({
+    enabled                            = optional(bool, true)
+    prefix_match                       = optional(list(string), [])
+    blob_types                         = optional(list(string), ["blockBlob"])
+    tier_to_cool_after_days            = optional(number, 30)
+    tier_to_archive_after_days         = optional(number, 90)
+    delete_after_days                  = optional(number, 400)
+    delete_snapshot_after_days         = optional(number, 90)
+    tier_to_cold_after_days            = optional(number, null)
+    auto_tier_to_hot_from_cool_enabled = optional(bool, false)
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Additional Tags
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_additional_tags" {
+  description = "Additional tags for diagnostics storage account resources."
+  type        = map(string)
+  default     = {}
+}

@@ -139,7 +139,8 @@ locals {
   m04_can_deploy = var.deploy_m04_alerts && var.deploy_m01_log_analytics && var.deploy_m03_action_groups
   m06_can_deploy = var.deploy_m06_update_management
   m07_can_deploy = var.deploy_m07_dcr && var.deploy_m01_log_analytics
-
+  m08_can_deploy = var.deploy_m08_diagnostics_storage
+  m08_self_diagnostics_can_deploy = var.deploy_m08_diagnostics_storage && var.deploy_m01_log_analytics && var.enable_m08_self_diagnostics
   #===============================================================================
   # M07 - DATA COLLECTION RULES - LOCAL CONFIGURATIONS
   #===============================================================================
@@ -615,4 +616,5 @@ EOT
     local.recommended_dcr_configurations,
     var.dcr_custom_configurations
   )
+
 }

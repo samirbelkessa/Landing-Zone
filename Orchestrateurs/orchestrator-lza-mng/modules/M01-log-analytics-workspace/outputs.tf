@@ -234,10 +234,10 @@ output "outputs_for_m05" {
 }
 
 output "outputs_for_m07" {
-  description = "Outputs specifically needed by M07 (Data Collection Rules)."
+  description = "Outputs specifically needed by M07 Data Collection Rules."
   value = {
-    workspace_id          = azurerm_log_analytics_workspace.this.id
-    workspace_resource_id = azurerm_log_analytics_workspace.this.workspace_id
+    workspace_resource_id = azurerm_log_analytics_workspace.this.id  # ← CORRECT (Resource ID complet)
+    workspace_id          = azurerm_log_analytics_workspace.this.workspace_id  # ← GUID (pour référence)
     location              = azurerm_log_analytics_workspace.this.location
   }
 }
