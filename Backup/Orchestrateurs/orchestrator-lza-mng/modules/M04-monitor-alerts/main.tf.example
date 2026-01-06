@@ -1,0 +1,335 @@
+# =============================================================================
+# M04 - Monitor Alerts - Integration Example (main.tf.example)
+# =============================================================================
+# This file demonstrates the CORRECT way to integrate M04 with other modules
+# WITHOUT any hardcoded values. All resource IDs come from module outputs.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# TERRAFORM CONFIGURATION
+# -----------------------------------------------------------------------------
+
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 3.80.0"
+    }
+  }
+
+  # Backend managed by Brainboard
+}
+
+provider "azurerm" {
+  features {}
+}
+
+# -----------------------------------------------------------------------------
+# DATA SOURCES - Get subscription information dynamically
+# -----------------------------------------------------------------------------
+
+data "azurerm_client_config" "current" {}
+
+data "azurerm_subscription" "management" {
+  subscription_id = var.management_subscription_id
+}
+
+data "azurerm_subscription" "connectivity" {
+  subscription_id = var.connectivity_subscription_id
+}
+
+data "azurerm_subscription" "identity" {
+  subscription_id = var.identity_subscription_id
+}
+
+# -----------------------------------------------------------------------------
+# VARIABLES - Subscription IDs as inputs (not hardcoded)
+# -----------------------------------------------------------------------------
+
+variable "management_subscription_id" {
+  description = "Subscription ID for Management resources"
+  type        = string
+}
+
+variable "connectivity_subscription_id" {
+  description = "Subscription ID for Connectivity resources"
+  type        = string
+}
+
+variable "identity_subscription_id" {
+  description = "Subscription ID for Identity resources"
+  type        = string
+}
+
+# -----------------------------------------------------------------------------
+# PREREQUISITE MODULES
+# -----------------------------------------------------------------------------
+
+# M01 - Log Analytics Workspace
+module "log_analytics" {
+  source = "../M01-log-analytics-workspace"
+
+  workload            = "platform"
+  environment         = "prod"
+  region              = "aue"
+  instance            = "001"
+  owner               = "platform-team@company.com.au"
+  cost_center         = "CLOUD-001"
+  application         = "Azure Landing Zone"
+  resource_group_name = azurerm_resource_group.management.name
+
+  retention_in_days       = 90
+  archive_retention_days  = 310
+}
+
+# M03 - Action Groups
+module "action_groups" {
+  source = "../M03-monitor-action-groups"
+
+  workload            = "platform"
+  environment         = "prod"
+  region              = "aue"
+  instance            = "001"
+  owner               = "platform-team@company.com.au"
+  cost_center         = "CLOUD-001"
+  application         = "Azure Landing Zone"
+  resource_group_name = azurerm_resource_group.management.name
+
+  create_default_action_groups = true
+  default_email_receivers = [
+    {
+      name          = "Platform Team"
+      email_address = "platform-team@company.com.au"
+    }
+  ]
+}
+
+# C01 - Hub Virtual Network (for metric alerts on network resources)
+module "hub_vnet" {
+  source = "../C01-hub-virtual-network"
+
+  workload            = "hub"
+  environment         = "prod"
+  region              = "aue"
+  instance            = "001"
+  owner               = "network-team@company.com.au"
+  cost_center         = "NET-001"
+  application         = "Hub Network"
+  resource_group_name = azurerm_resource_group.connectivity.name
+
+  address_space = ["10.0.0.0/24"]
+}
+
+# C02 - Azure Firewall
+module "azure_firewall" {
+  source = "../C02-azure-firewall"
+
+  workload            = "hub"
+  environment         = "prod"
+  region              = "aue"
+  instance            = "001"
+  owner               = "network-team@company.com.au"
+  cost_center         = "NET-001"
+  application         = "Azure Firewall"
+  resource_group_name = azurerm_resource_group.connectivity.name
+
+  subnet_id = module.hub_vnet.firewall_subnet_id
+}
+
+# -----------------------------------------------------------------------------
+# M04 - MONITOR ALERTS (Main Module)
+# All values from module outputs - NO HARDCODING
+# -----------------------------------------------------------------------------
+
+module "monitor_alerts" {
+  source = "../M04-monitor-alerts"
+
+  # F02 Naming inputs
+  workload    = "platform"
+  environment = "prod"
+  region      = "aue"
+  instance    = "001"
+
+  # F03 Tags inputs
+  owner               = "platform-team@company.com.au"
+  cost_center         = "CLOUD-001"
+  application         = "Azure Landing Zone"
+  criticality         = "Critical"
+  data_classification = "Internal"
+  project             = "Australia LZ Migration"
+  department          = "Cloud Platform"
+
+  # Resource group from Terraform resource
+  resource_group_name = azurerm_resource_group.management.name
+
+  # Log Analytics workspace ID from M01 output
+  log_analytics_workspace_id = module.log_analytics.id
+
+  # Action Groups from M03 output - automatic mapping
+  action_group_ids = module.action_groups.outputs_for_m04.action_group_ids
+
+  # Subscription IDs for scopes - from variables (not hardcoded)
+  subscription_ids = [
+    var.management_subscription_id,
+    var.connectivity_subscription_id,
+    var.identity_subscription_id
+  ]
+
+  # Default alerts configuration
+  create_default_alerts = true
+
+  service_health_alert_config = {
+    enabled     = true
+    event_types = ["Incident", "Maintenance", "Security", "HealthAdvisory"]
+    regions     = ["Australia East", "Australia Southeast", "Global"]
+    severity    = "critical"
+  }
+
+  resource_health_alert_config = {
+    enabled        = true
+    current_states = ["Degraded", "Unavailable"]
+    severity       = "warning"
+  }
+
+  # Custom metric alerts - scopes from module outputs
+  custom_metric_alerts = {
+    # Azure Firewall throughput - scope from C02 module
+    "firewall-throughput" = {
+      description    = "Alert when Azure Firewall throughput exceeds threshold"
+      scopes         = [module.azure_firewall.id]  # From module output
+      severity_level = 2
+      frequency      = "PT5M"
+      window_size    = "PT15M"
+      severity       = "warning"
+      criteria = [{
+        metric_namespace = "Microsoft.Network/azureFirewalls"
+        metric_name      = "Throughput"
+        aggregation      = "Average"
+        operator         = "GreaterThan"
+        threshold        = 900000000
+      }]
+    }
+
+    # Log Analytics ingestion - scope from M01 module
+    "la-ingestion-spike" = {
+      description    = "Alert when Log Analytics ingestion spikes"
+      scopes         = [module.log_analytics.id]  # From module output
+      severity_level = 2
+      frequency      = "PT5M"
+      window_size    = "PT1H"
+      severity       = "warning"
+      criteria = [{
+        metric_namespace = "Microsoft.OperationalInsights/workspaces"
+        metric_name      = "IngestionBurstingEnabled"
+        aggregation      = "Maximum"
+        operator         = "GreaterThan"
+        threshold        = 0
+      }]
+    }
+  }
+
+  # Custom log query alerts - scope from M01 module
+  custom_log_query_alerts = {
+    "failed-signins" = {
+      description          = "Alert on multiple failed sign-in attempts"
+      location             = "australiaeast"
+      scopes               = [module.log_analytics.id]  # From module output
+      evaluation_frequency = "PT5M"
+      window_duration      = "PT15M"
+      severity_level       = 2
+      severity             = "security"
+      query                = <<-QUERY
+        SigninLogs
+        | where ResultType != "0"
+        | where TimeGenerated > ago(15m)
+        | summarize FailedAttempts = count() by UserPrincipalName, IPAddress
+        | where FailedAttempts > 5
+      QUERY
+      threshold                   = 0
+      operator                    = "GreaterThan"
+      time_aggregation_method     = "Count"
+    }
+
+    "firewall-denied-connections" = {
+      description          = "Alert on high volume of denied connections"
+      location             = "australiaeast"
+      scopes               = [module.log_analytics.id]  # From module output
+      evaluation_frequency = "PT5M"
+      window_duration      = "PT15M"
+      severity_level       = 2
+      severity             = "network"
+      query                = <<-QUERY
+        AzureDiagnostics
+        | where Category == "AzureFirewallNetworkRule" or Category == "AzureFirewallApplicationRule"
+        | where msg_s contains "Deny"
+        | where TimeGenerated > ago(15m)
+        | summarize DeniedCount = count() by SourceIP = extract("from ([0-9.]+):", 1, msg_s)
+        | where DeniedCount > 100
+      QUERY
+      threshold                   = 0
+      operator                    = "GreaterThan"
+      time_aggregation_method     = "Count"
+    }
+
+    "backup-failures" = {
+      description          = "Alert on Azure Backup job failures"
+      location             = "australiaeast"
+      scopes               = [module.log_analytics.id]  # From module output
+      evaluation_frequency = "PT15M"
+      window_duration      = "PT1H"
+      severity_level       = 2
+      severity             = "backup"
+      query                = <<-QUERY
+        AzureDiagnostics
+        | where Category == "AzureBackupReport"
+        | where OperationName == "Job" and JobStatus_s == "Failed"
+        | where TimeGenerated > ago(1h)
+        | summarize FailedJobs = count() by BackupItemName_s, VaultName_s
+        | where FailedJobs > 0
+      QUERY
+      threshold                   = 0
+      operator                    = "GreaterThan"
+      time_aggregation_method     = "Count"
+    }
+  }
+
+  additional_tags = {
+    BusinessUnit    = "IT Infrastructure"
+    ComplianceScope = "SOC2"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# RESOURCE GROUPS (example - typically from separate module)
+# -----------------------------------------------------------------------------
+
+resource "azurerm_resource_group" "management" {
+  name     = "rg-management-prd-aue-001"
+  location = "australiaeast"
+}
+
+resource "azurerm_resource_group" "connectivity" {
+  name     = "rg-connectivity-prd-aue-001"
+  location = "australiaeast"
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "alert_summary" {
+  description = "Summary of deployed alerts"
+  value       = module.monitor_alerts.default_alerts_summary
+}
+
+output "all_alert_ids" {
+  description = "All alert IDs"
+  value       = module.monitor_alerts.all_alert_ids
+}
+
+output "alert_count" {
+  description = "Total number of alerts deployed"
+  value       = module.monitor_alerts.alert_count
+}
