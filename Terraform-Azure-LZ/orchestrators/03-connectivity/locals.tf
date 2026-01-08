@@ -19,12 +19,20 @@ locals {
     var.tags
   )
 
+# ---------------------------------------------------------------------------
+  # RESOURCE GROUP IDs - Multi-RG Architecture
   # ---------------------------------------------------------------------------
-  # RESOURCE GROUP IDs
-  # ---------------------------------------------------------------------------
-  rg_id_aue  = "/subscriptions/${var.connectivity_subscription_id}/resourceGroups/${var.resource_group_name_aue}"
-  rg_id_ause = "/subscriptions/${var.connectivity_subscription_id}/resourceGroups/${var.resource_group_name_ause}"
+  # Network RGs (VNet + Firewall + Gateway + Bastion)
+  rg_id_network_aue  = "/subscriptions/${var.connectivity_subscription_id}/resourceGroups/${var.resource_group_name_network_aue}"
+  rg_id_network_ause = "/subscriptions/${var.connectivity_subscription_id}/resourceGroups/${var.resource_group_name_network_ause}"
+  
+  # DNS RGs
+  rg_id_dns_aue  = "/subscriptions/${var.connectivity_subscription_id}/resourceGroups/${var.resource_group_name_dns_aue}"
+  rg_id_dns_ause = "/subscriptions/${var.connectivity_subscription_id}/resourceGroups/${var.resource_group_name_dns_ause}"
 
+  # Legacy (backward compatibility)
+  rg_id_aue  = local.rg_id_network_aue
+  rg_id_ause = local.rg_id_network_ause
   # ---------------------------------------------------------------------------
   # NAMING CONVENTIONS
   # ---------------------------------------------------------------------------
@@ -76,24 +84,23 @@ locals {
   # - AzureBastionSubnet
   # - Subnet DNS Resolver
 
-  custom_subnets_aue = merge(
-    {
-      snet-hub-mgmt = {
-        name             = "snet-hub-mgmt"
-        address_prefixes = [var.hub_subnets_aue.management_subnet]
-      }
-      snet-hub-shared = {
-        name             = "snet-hub-shared"
-        address_prefixes = [var.hub_subnets_aue.shared_services_subnet]
-      }
-      snet-hub-pe = {
-        name                                          = "snet-hub-pe"
-        address_prefixes                              = [var.hub_subnets_aue.private_endpoints_subnet]
-        private_endpoint_network_policies_enabled     = false
-        private_link_service_network_policies_enabled = false
-      }
+  custom_subnets_aue = {
+    snet-hub-mgmt = {
+      name             = "snet-hub-mgmt"
+      address_prefixes = [var.hub_subnets_aue.management_subnet]
     }
-  )
+    snet-hub-shared = {
+      name             = "snet-hub-shared"
+      address_prefixes = [var.hub_subnets_aue.shared_services_subnet]
+    }
+    snet-hub-pe = {
+      name                                          = "snet-hub-pe"
+      address_prefixes                              = [var.hub_subnets_aue.private_endpoints_subnet]
+      private_endpoint_network_policies_enabled     = false
+      private_link_service_network_policies_enabled = false
+    }
+  }
+
 
   custom_subnets_ause = merge(
     {
@@ -112,6 +119,7 @@ locals {
         private_link_service_network_policies_enabled = false
       }
     }
+    # Note: No Application Gateway in DR region (Australia Southeast)
   )
 
   # ---------------------------------------------------------------------------
@@ -338,4 +346,60 @@ locals {
     data.terraform_remote_state.management.outputs.resource_group_name,
     null
   )
+
+  # ---------------------------------------------------------------------------
+  # APPLICATION GATEWAY NAMING
+  # ---------------------------------------------------------------------------
+  application_gateway_naming = {
+    name        = var.application_gateway_name
+    public_ip   = "pip-${var.application_gateway_name}"
+    subnet_name = "ApplicationGatewaySubnet"
+  }
+  
+  # Merge with existing custom subnets
+  all_custom_subnets_aue = local.custom_subnets_aue
+  
+
+  # ---------------------------------------------------------------------------
+  # APPLICATION GATEWAY - Use Log Analytics from Management Layer
+  # ---------------------------------------------------------------------------
+  appgw_diagnostic_workspace_id = local.effective_log_analytics_workspace_id
+
+  # ---------------------------------------------------------------------------
+  # APPLICATION GATEWAY TAGS
+  # ---------------------------------------------------------------------------
+  appgw_tags = merge(
+    local.common_tags,
+    local.has_management_state ? {
+      ManagementRG = local.management.resource_group_name
+    } : {},
+    {
+      Component = "Application Gateway"
+      Module    = "avm-res-network-applicationgateway"
+    }
+  )
+
+  # ---------------------------------------------------------------------------
+  # WAF CONFIGURATION
+  # ---------------------------------------------------------------------------
+  waf_configuration = var.enable_waf && var.application_gateway_sku.tier == "WAF_v2" ? {
+    enabled                  = true
+    firewall_mode            = var.waf_mode
+    rule_set_type            = "OWASP"
+    rule_set_version         = var.waf_rule_set_version
+    file_upload_limit_mb     = 100
+    max_request_body_size_kb = 128
+    request_body_check       = true
+  } : null
+
+  # ---------------------------------------------------------------------------
+  # APPLICATION GATEWAY SSL POLICY
+  # ---------------------------------------------------------------------------
+  appgw_ssl_policy = {
+    policy_type          = var.application_gateway_ssl_policy.policy_type
+    policy_name          = var.application_gateway_ssl_policy.policy_type == "Predefined" ? "AppGwSslPolicy20220101S" : null
+    min_protocol_version = var.application_gateway_ssl_policy.min_protocol_version
+    cipher_suites        = var.application_gateway_ssl_policy.policy_type != "Predefined" ? var.application_gateway_ssl_policy.cipher_suites : null
+    disabled_protocols   = null
+  }
 }

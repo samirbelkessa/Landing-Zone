@@ -50,16 +50,31 @@ variable "cost_center" {
 # -----------------------------------------------------------------------------
 # RESOURCE GROUPS
 # -----------------------------------------------------------------------------
-variable "resource_group_name_aue" {
-  description = "Nom du Resource Group pour Australia East"
+# Network RGs (VNet, Route Tables, Bastion)
+variable "resource_group_name_network_aue" {
+  description = "Nom du Resource Group Network pour Australia East"
   type        = string
-  default     = "rg-connectivity-aue-001"
+  default     = "rg-connectivity-network-aue-001"
 }
 
-variable "resource_group_name_ause" {
-  description = "Nom du Resource Group pour Australia Southeast"
+variable "resource_group_name_network_ause" {
+  description = "Nom du Resource Group Network pour Australia Southeast"
   type        = string
-  default     = "rg-connectivity-ause-001"
+  default     = "rg-connectivity-network-ause-001"
+}
+
+
+# DNS RGs
+variable "resource_group_name_dns_aue" {
+  description = "Nom du Resource Group DNS pour Australia East"
+  type        = string
+  default     = "rg-connectivity-dns-aue-001"
+}
+
+variable "resource_group_name_dns_ause" {
+  description = "Nom du Resource Group DNS pour Australia Southeast"
+  type        = string
+  default     = "rg-connectivity-dns-ause-001"
 }
 
 # -----------------------------------------------------------------------------
@@ -294,4 +309,256 @@ variable "tags" {
   description = "Tags additionnels à appliquer aux ressources"
   type        = map(string)
   default     = {}
+}
+
+# =============================================================================
+# APPLICATION GATEWAY (C13) VARIABLES
+# =============================================================================
+
+variable "enable_application_gateway" {
+  description = "Enable Application Gateway deployment"
+  type        = bool
+  default     = false
+}
+
+variable "application_gateway_name" {
+  description = "Name of the Application Gateway"
+  type        = string
+  default     = "agw-hub-aue-001"
+}
+
+variable "application_gateway_sku" {
+  description = "SKU configuration for Application Gateway"
+  type = object({
+    name     = string
+    tier     = string
+    capacity = optional(number, null)
+  })
+  default = {
+    name     = "WAF_v2"
+    tier     = "WAF_v2"
+    capacity = null  # Use autoscale instead
+  }
+
+  validation {
+    condition     = contains(["Standard_v2", "WAF_v2"], var.application_gateway_sku.name)
+    error_message = "SKU name must be Standard_v2 or WAF_v2 for zone-redundant deployments."
+  }
+}
+
+variable "application_gateway_autoscale" {
+  description = "Autoscale configuration for Application Gateway"
+  type = object({
+    min_capacity = number
+    max_capacity = number
+  })
+  default = {
+    min_capacity = 1
+    max_capacity = 10
+  }
+}
+
+variable "application_gateway_zones" {
+  description = "Availability zones for Application Gateway"
+  type        = set(string)
+  default     = ["1", "2", "3"]
+}
+
+variable "application_gateway_subnet_address_prefix" {
+  description = "Address prefix for Application Gateway subnet (minimum /26)"
+  type        = string
+  default     = "10.0.1.192/26"
+}
+
+variable "enable_waf" {
+  description = "Enable Web Application Firewall (requires WAF_v2 SKU)"
+  type        = bool
+  default     = true
+}
+
+variable "waf_mode" {
+  description = "WAF mode: Detection or Prevention"
+  type        = string
+  default     = "Prevention"
+
+  validation {
+    condition     = contains(["Detection", "Prevention"], var.waf_mode)
+    error_message = "WAF mode must be Detection or Prevention."
+  }
+}
+
+variable "waf_rule_set_version" {
+  description = "OWASP rule set version for WAF"
+  type        = string
+  default     = "3.2"
+}
+
+variable "application_gateway_ssl_policy" {
+  description = "SSL policy configuration for Application Gateway"
+  type = object({
+    policy_type          = string
+    min_protocol_version = string
+    cipher_suites        = optional(list(string))
+  })
+  default = {
+    policy_type          = "Predefined"
+    min_protocol_version = "TLSv1_2"
+    cipher_suites        = null
+  }
+}
+
+variable "application_gateway_backend_pools" {
+  description = "Backend address pools configuration"
+  type = map(object({
+    name         = string
+    fqdns        = optional(set(string))
+    ip_addresses = optional(set(string))
+  }))
+  default = {
+    default = {
+      name         = "default-backend-pool"
+      fqdns        = null
+      ip_addresses = null
+    }
+  }
+}
+
+variable "application_gateway_backend_http_settings" {
+  description = "Backend HTTP settings configuration"
+  type = map(object({
+    name                                = string
+    port                                = number
+    protocol                            = string
+    cookie_based_affinity               = optional(string, "Disabled")
+    request_timeout                     = optional(number, 30)
+    probe_name                          = optional(string)
+    pick_host_name_from_backend_address = optional(bool, false)
+    host_name                           = optional(string)
+    path                                = optional(string)
+    trusted_root_certificate_names      = optional(list(string))
+  }))
+  default = {
+    default = {
+      name                  = "default-http-settings"
+      port                  = 80
+      protocol              = "Http"
+      cookie_based_affinity = "Disabled"
+      request_timeout       = 30
+    }
+  }
+}
+
+variable "application_gateway_frontend_ports" {
+  description = "Frontend ports configuration"
+  type = map(object({
+    name = string
+    port = number
+  }))
+  default = {
+    http = {
+      name = "port-80"
+      port = 80
+    }
+    https = {
+      name = "port-443"
+      port = 443
+    }
+  }
+}
+
+variable "application_gateway_http_listeners" {
+  description = "HTTP listeners configuration"
+  type = map(object({
+    name                           = string
+    frontend_port_name             = string
+    frontend_ip_configuration_name = optional(string)
+    host_name                      = optional(string)
+    host_names                     = optional(list(string))
+    ssl_certificate_name           = optional(string)
+    require_sni                    = optional(bool, false)
+    firewall_policy_id             = optional(string)
+  }))
+  default = {
+    default = {
+      name               = "default-http-listener"
+      frontend_port_name = "port-80"
+    }
+  }
+}
+
+variable "application_gateway_request_routing_rules" {
+  description = "Request routing rules configuration"
+  type = map(object({
+    name                        = string
+    rule_type                   = string
+    http_listener_name          = string
+    backend_address_pool_name   = string
+    backend_http_settings_name  = string
+    priority                    = number
+    url_path_map_name           = optional(string)
+    redirect_configuration_name = optional(string)
+    rewrite_rule_set_name       = optional(string)
+  }))
+  default = {
+    default = {
+      name                       = "default-routing-rule"
+      rule_type                  = "Basic"
+      http_listener_name         = "default-http-listener"
+      backend_address_pool_name  = "default-backend-pool"
+      backend_http_settings_name = "default-http-settings"
+      priority                   = 100
+    }
+  }
+}
+
+variable "application_gateway_health_probes" {
+  description = "Health probe configurations"
+  type = map(object({
+    name                                      = string
+    protocol                                  = string
+    path                                      = string
+    interval                                  = number
+    timeout                                   = number
+    unhealthy_threshold                       = number
+    host                                      = optional(string, "127.0.0.1")
+    port                                      = optional(number)
+    pick_host_name_from_backend_http_settings = optional(bool, false)
+    minimum_servers                           = optional(number, 0)
+    match = optional(object({
+      body        = optional(string)
+      status_code = list(string)
+    }))
+  }))
+  default = {}
+}
+
+variable "application_gateway_ssl_certificates" {
+  description = "SSL certificates configuration (Key Vault integration)"
+  type = map(object({
+    name                = string
+    key_vault_secret_id = optional(string)
+    data                = optional(string)
+    password            = optional(string)
+  }))
+  default   = {}
+  sensitive = true
+}
+
+variable "application_gateway_private_ip_address" {
+  description = "Private IP address for Application Gateway (optional, uses dynamic if not set)"
+  type        = string
+  default     = null
+}
+
+variable "application_gateway_enable_private_frontend" {
+  description = "Enable private frontend IP configuration"
+  type        = bool
+  default     = false
+}
+
+# Log Analytics Workspace ID from Management Layer (for diagnostics)
+variable "log_analytics_workspace_id" {
+  description = "Resource ID of Log Analytics Workspace from Management layer for diagnostics"
+  type        = string
+  default     = ""
 }

@@ -16,17 +16,42 @@
 # =============================================================================
 # Les Resource Groups doivent être créés AVANT le module AVM
 # car le module attend un parent_id existant
-
-resource "azurerm_resource_group" "connectivity_aue" {
-  name     = var.resource_group_name_aue
+# -----------------------------------------------------------------------------
+# NETWORK RGs (VNet + Firewall + Gateway + Bastion + Route Tables)
+# -----------------------------------------------------------------------------
+resource "azurerm_resource_group" "network_aue" {
+  name     = var.resource_group_name_network_aue
   location = "australiaeast"
-  tags     = local.common_tags
+  tags = merge(local.common_tags, {
+    Function = "Network-Hub"
+  })
 }
 
-resource "azurerm_resource_group" "connectivity_ause" {
-  name     = var.resource_group_name_ause
+resource "azurerm_resource_group" "network_ause" {
+  name     = var.resource_group_name_network_ause
   location = "australiasoutheast"
-  tags     = local.common_tags
+  tags = merge(local.common_tags, {
+    Function = "Network-Hub"
+  })
+}
+
+# -----------------------------------------------------------------------------
+# DNS RGs (Private DNS Zones + DNS Resolver)
+# -----------------------------------------------------------------------------
+resource "azurerm_resource_group" "dns_aue" {
+  name     = var.resource_group_name_dns_aue
+  location = "australiaeast"
+  tags = merge(local.common_tags, {
+    Function = "DNS"
+  })
+}
+
+resource "azurerm_resource_group" "dns_ause" {
+  name     = var.resource_group_name_dns_ause
+  location = "australiasoutheast"
+  tags = merge(local.common_tags, {
+    Function = "DNS"
+  })
 }
 
 # =============================================================================
@@ -65,7 +90,7 @@ module "alz_connectivity" {
     # =========================================================================
     australiaeast = {
       location          = "australiaeast"
-      default_parent_id = azurerm_resource_group.connectivity_aue.id
+      default_parent_id = azurerm_resource_group.network_aue.id
 
       # -----------------------------------------------------------------------
       # Contrôle des ressources à déployer
@@ -94,7 +119,7 @@ module "alz_connectivity" {
         #routing_address_space = var.routing_address_space
 
         # Subnets custom (hors subnets gérés automatiquement)
-        subnets = local.custom_subnets_aue
+        subnets = local.all_custom_subnets_aue
 
         # Routes custom additionnelles pour les user subnets
         /*
@@ -204,6 +229,7 @@ module "alz_connectivity" {
       # PRIVATE DNS ZONES
       # -----------------------------------------------------------------------
       private_dns_zones = {
+        parent_id                      = azurerm_resource_group.dns_aue.id
         # Zone d'auto-registration pour les VMs du Hub
         auto_registration_zone_enabled = true
         auto_registration_zone_name    = "hub-aue.azure.internal"
@@ -219,6 +245,7 @@ module "alz_connectivity" {
       # -----------------------------------------------------------------------
       private_dns_resolver = {
         name                             = local.naming.dns_resolver_aue
+        resource_group_name              = azurerm_resource_group.dns_aue.name
         subnet_address_prefix            = var.hub_subnets_aue.dns_resolver_inbound_subnet
         default_inbound_endpoint_enabled = true
 
@@ -246,7 +273,7 @@ module "alz_connectivity" {
     # =========================================================================
     australiasoutheast = {
       location          = "australiasoutheast"
-      default_parent_id = azurerm_resource_group.connectivity_ause.id
+      default_parent_id = azurerm_resource_group.network_ause.id
 
       # -----------------------------------------------------------------------
       # Contrôle des ressources à déployer (DR = moins de ressources)
@@ -365,6 +392,7 @@ module "alz_connectivity" {
       # -----------------------------------------------------------------------
       private_dns_resolver = {
         name                             = local.naming.dns_resolver_ause
+        resource_group_name              = azurerm_resource_group.dns_ause.name
         subnet_address_prefix            = var.hub_subnets_ause.dns_resolver_inbound_subnet
         default_inbound_endpoint_enabled = true
 
@@ -372,4 +400,166 @@ module "alz_connectivity" {
       }
     }
   }
+}
+
+# =============================================================================
+# APPLICATION GATEWAY (C13) - USING AVM MODULE
+# =============================================================================
+# Documentation: https://github.com/Azure/terraform-azurerm-avm-res-network-applicationgateway
+# Requires: WAF_v2 SKU for production with Web Application Firewall
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# APPLICATION GATEWAY SUBNET
+# Created separately to ensure proper dependencies
+# -----------------------------------------------------------------------------
+resource "azurerm_subnet" "application_gateway" {
+  count = var.enable_application_gateway ? 1 : 0
+
+  name                 = "ApplicationGatewaySubnet"
+  resource_group_name  = azurerm_resource_group.network_aue.name
+  virtual_network_name = module.alz_connectivity.virtual_network_resource_names["australiaeast"]
+  address_prefixes     = [var.application_gateway_subnet_address_prefix]
+
+  depends_on = [module.alz_connectivity]
+}
+
+# -----------------------------------------------------------------------------
+# USER ASSIGNED MANAGED IDENTITY (for Key Vault SSL certificates)
+# -----------------------------------------------------------------------------
+resource "azurerm_user_assigned_identity" "appgw" {
+  count = var.enable_application_gateway ? 1 : 0
+
+  name                = "id-${var.application_gateway_name}"
+  location            = "australiaeast"
+  resource_group_name = azurerm_resource_group.network_aue.name
+  tags                = local.appgw_tags
+}
+
+# -----------------------------------------------------------------------------
+# APPLICATION GATEWAY MODULE (AVM)
+# -----------------------------------------------------------------------------
+module "application_gateway" {
+  count   = var.enable_application_gateway ? 1 : 0
+  source  = "Azure/avm-res-network-applicationgateway/azurerm"
+  version = "0.4.3"
+
+  # ---------------------------------------------------------------------------
+  # BASIC CONFIGURATION
+  # ---------------------------------------------------------------------------
+  name                = var.application_gateway_name
+  resource_group_name = azurerm_resource_group.network_aue.name
+  location            = "australiaeast"
+
+  # SKU Configuration
+  sku = var.application_gateway_sku
+
+  # Autoscale Configuration (recommended for production)
+  autoscale_configuration = var.application_gateway_autoscale
+
+  # Availability Zones
+  zones = var.application_gateway_zones
+
+  # Enable HTTP/2
+  http2_enable = true
+
+  # ---------------------------------------------------------------------------
+  # NETWORKING
+  # ---------------------------------------------------------------------------
+  gateway_ip_configuration = {
+    name      = "appGatewayIpConfig"
+    subnet_id = azurerm_subnet.application_gateway[0].id
+  }
+
+  # Public IP (auto-created by module)
+  create_public_ip = true
+  public_ip_name   = local.application_gateway_naming.public_ip
+
+  # Private Frontend (optional)
+  frontend_ip_configuration_private = var.application_gateway_enable_private_frontend ? {
+    name                          = "private-frontend"
+    private_ip_address            = var.application_gateway_private_ip_address
+    private_ip_address_allocation = var.application_gateway_private_ip_address != null ? "Static" : "Dynamic"
+  } : {}
+
+  # ---------------------------------------------------------------------------
+  # BACKEND CONFIGURATION
+  # ---------------------------------------------------------------------------
+  backend_address_pools = var.application_gateway_backend_pools
+
+  backend_http_settings = var.application_gateway_backend_http_settings
+
+  # ---------------------------------------------------------------------------
+  # FRONTEND CONFIGURATION
+  # ---------------------------------------------------------------------------
+  frontend_ports = var.application_gateway_frontend_ports
+
+  http_listeners = var.application_gateway_http_listeners
+
+  # ---------------------------------------------------------------------------
+  # ROUTING
+  # ---------------------------------------------------------------------------
+  request_routing_rules = var.application_gateway_request_routing_rules
+
+  # ---------------------------------------------------------------------------
+  # HEALTH PROBES
+  # ---------------------------------------------------------------------------
+  probe_configurations = length(var.application_gateway_health_probes) > 0 ? var.application_gateway_health_probes : null
+
+  # ---------------------------------------------------------------------------
+  # SSL/TLS CONFIGURATION
+  # ---------------------------------------------------------------------------
+  ssl_policy = local.appgw_ssl_policy
+
+  ssl_certificates = length(var.application_gateway_ssl_certificates) > 0 ? var.application_gateway_ssl_certificates : null
+
+  # ---------------------------------------------------------------------------
+  # WAF CONFIGURATION (if WAF_v2 SKU)
+  # ---------------------------------------------------------------------------
+  waf_configuration = local.waf_configuration
+
+  # Force association with WAF policy (if custom policy is provided)
+  force_firewall_policy_association = true
+
+  # ---------------------------------------------------------------------------
+  # MANAGED IDENTITY (for Key Vault integration)
+  # ---------------------------------------------------------------------------
+  managed_identities = {
+    system_assigned            = false
+    user_assigned_resource_ids = [azurerm_user_assigned_identity.appgw[0].id]
+  }
+
+  # ---------------------------------------------------------------------------
+  # DIAGNOSTICS
+  # ---------------------------------------------------------------------------
+  diagnostic_settings = local.has_log_analytics ? {
+    to_law = {
+      name                  = "diag-${var.application_gateway_name}"
+      workspace_resource_id = local.effective_log_analytics_workspace_id
+      log_groups            = ["allLogs"]
+      metric_categories     = ["AllMetrics"]
+    }
+  } : {}
+
+  # ---------------------------------------------------------------------------
+  # RESOURCE LOCK (optional for production)
+  # ---------------------------------------------------------------------------
+  lock = var.environment == "prod" ? {
+    kind = "CanNotDelete"
+    name = "lock-${var.application_gateway_name}"
+  } : null
+
+  # ---------------------------------------------------------------------------
+  # TAGS
+  # ---------------------------------------------------------------------------
+  tags = local.appgw_tags
+
+  # Disable telemetry
+  enable_telemetry = false
+
+  depends_on = [
+    module.alz_connectivity,
+    azurerm_subnet.application_gateway,
+    azurerm_user_assigned_identity.appgw
+  ]
 }
