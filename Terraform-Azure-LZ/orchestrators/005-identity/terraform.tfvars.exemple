@@ -1,0 +1,262 @@
+# =============================================================================
+# TERRAFORM.TFVARS - Identity Configuration (Australia)
+# =============================================================================
+# Orchestrator: 05-identity
+# Environment: Production
+# Region: Australia East
+# =============================================================================
+
+# =============================================================================
+# AUTHENTICATION
+# =============================================================================
+
+tenant_id                       = "01c40c02-a3ca-49b1-a844-dd9c825be5eb"
+identity_subscription_id        = "ef7442e9-4d15-4a28-939a-f428a3d59487"
+terraform_state_subscription_id = "ef7442e9-4d15-4a28-939a-f428a3d59487"  # Update with your tfstate subscription
+
+# =============================================================================
+# REMOTE STATE
+# =============================================================================
+
+remote_state_resource_group  = "rg-intelly-terraform-state"
+remote_state_storage_account = "stintellytfstate"  # Update with your storage account
+remote_state_container       = "tfstate"
+
+# =============================================================================
+# COMMON SETTINGS
+# =============================================================================
+
+location     = "australiaeast"
+environment  = "prod"
+project_name = "identity"
+
+# =============================================================================
+# TAGS (F03)
+# =============================================================================
+
+owner       = "platform-team@intelly.com"
+cost_center = "IT-PLATFORM-001"
+application = "Platform Identity"
+
+tags = {
+  Criticality = "High"
+  DataClass   = "Confidential"
+}
+
+# =============================================================================
+# MODULE FLAGS
+# =============================================================================
+
+deploy_role_assignments   = true
+deploy_managed_identities = false  # Set to true when needed
+
+# =============================================================================
+# ROLE ASSIGNMENTS (CAF Compliant)
+# =============================================================================
+# Azure Built-in Roles used:
+# - Owner: Full access to resources
+# - Security Admin: Manage security policies and alerts
+# - Network Contributor: Manage networks
+# - Billing Reader: View billing information
+# - Contributor: Manage resources (not access)
+# - Reader: View resources
+# =============================================================================
+
+role_assignments = {
+  # ===========================================================================
+  # PLATFORM - Root Level
+  # ===========================================================================
+
+  # Platform Admins - Full control at Root MG
+  platform-admins-root = {
+    group_display_name = "intelly-platform-admins"
+    scope_type         = "management_group"
+    scope_name         = "intelly"
+    role_name          = "Owner"
+    description        = "Platform administrators with full control"
+  }
+
+  # Security Admins - Security operations at Root MG
+  security-admins-root = {
+    group_display_name = "intelly-security-admins"
+    scope_type         = "management_group"
+    scope_name         = "intelly"
+    role_name          = "Security Admin"
+    description        = "Security team for security operations"
+  }
+
+  # Billing Readers - Cost visibility at Root MG
+  billing-readers-root = {
+    group_display_name = "intelly-billing-readers"
+    scope_type         = "management_group"
+    scope_name         = "intelly"
+    role_name          = "Billing Reader"
+    description        = "Finance team for cost visibility"
+  }
+
+  # ===========================================================================
+  # PLATFORM - Network Operations
+  # ===========================================================================
+
+  # Network Admins - Network operations on Platform MG
+  network-admins-platform = {
+    group_display_name = "intelly-network-admins"
+    scope_type         = "management_group"
+    scope_name         = "intelly-platform"
+    role_name          = "Network Contributor"
+    description        = "Network team for network management"
+  }
+
+  # ===========================================================================
+  # LANDING ZONES - Corp Production
+  # ===========================================================================
+
+  # Corp Prod Owners - Full control on Corp Prod Landing Zone
+  corp-prod-owners = {
+    group_display_name = "intelly-corp-prod-owners"
+    scope_type         = "management_group"
+    scope_name         = "intelly-corp-prod"
+    role_name          = "Owner"
+    description        = "Corp Production Landing Zone owners"
+  }
+
+  # Corp Prod Contributors - Manage resources on Corp Prod
+  corp-prod-contributors = {
+    group_display_name = "intelly-corp-prod-contributors"
+    scope_type         = "management_group"
+    scope_name         = "intelly-corp-prod"
+    role_name          = "Contributor"
+    description        = "Corp Production application teams"
+  }
+
+  # Corp Prod Readers - Read-only access on Corp Prod
+  corp-prod-readers = {
+    group_display_name = "intelly-corp-prod-readers"
+    scope_type         = "management_group"
+    scope_name         = "intelly-corp-prod"
+    role_name          = "Reader"
+    description        = "Corp Production read-only access"
+  }
+
+  # ===========================================================================
+  # LANDING ZONES - Corp Non-Production
+  # ===========================================================================
+
+  # Corp NonProd Owners - Full control on Corp NonProd Landing Zone
+  corp-nonprod-owners = {
+    group_display_name = "intelly-corp-nonprod-owners"
+    scope_type         = "management_group"
+    scope_name         = "intelly-corp-nonprod"
+    role_name          = "Owner"
+    description        = "Corp Non-Production Landing Zone owners"
+  }
+
+  # Corp NonProd Contributors - Manage resources on Corp NonProd
+  corp-nonprod-contributors = {
+    group_display_name = "intelly-corp-nonprod-contributors"
+    scope_type         = "management_group"
+    scope_name         = "intelly-corp-nonprod"
+    role_name          = "Contributor"
+    description        = "Corp Non-Production application teams"
+  }
+
+  # ===========================================================================
+  # LANDING ZONES - Online Production
+  # ===========================================================================
+
+  # Online Prod Owners - Full control on Online Prod Landing Zone
+  online-prod-owners = {
+    group_display_name = "intelly-online-prod-owners"
+    scope_type         = "management_group"
+    scope_name         = "intelly-online-prod"
+    role_name          = "Owner"
+    description        = "Online Production Landing Zone owners"
+  }
+
+  # Online Prod Contributors - Manage resources on Online Prod
+  online-prod-contributors = {
+    group_display_name = "intelly-online-prod-contributors"
+    scope_type         = "management_group"
+    scope_name         = "intelly-online-prod"
+    role_name          = "Contributor"
+    description        = "Online Production application teams"
+  }
+
+  # Online Prod Readers - Read-only access on Online Prod
+  online-prod-readers = {
+    group_display_name = "intelly-online-prod-readers"
+    scope_type         = "management_group"
+    scope_name         = "intelly-online-prod"
+    role_name          = "Reader"
+    description        = "Online Production read-only access"
+  }
+
+  # ===========================================================================
+  # LANDING ZONES - Online Non-Production
+  # ===========================================================================
+
+  # Online NonProd Owners - Full control on Online NonProd Landing Zone
+  online-nonprod-owners = {
+    group_display_name = "intelly-online-nonprod-owners"
+    scope_type         = "management_group"
+    scope_name         = "intelly-online-nonprod"
+    role_name          = "Owner"
+    description        = "Online Non-Production Landing Zone owners"
+  }
+
+  # Online NonProd Contributors - Manage resources on Online NonProd
+  online-nonprod-contributors = {
+    group_display_name = "intelly-online-nonprod-contributors"
+    scope_type         = "management_group"
+    scope_name         = "intelly-online-nonprod"
+    role_name          = "Contributor"
+    description        = "Online Non-Production application teams"
+  }
+
+  # ===========================================================================
+  # SANDBOX
+  # ===========================================================================
+
+  # Sandbox Users - Dev/Test freedom in Sandbox MG
+  sandbox-users = {
+    group_display_name = "intelly-sandbox-users"
+    scope_type         = "management_group"
+    scope_name         = "intelly-sandbox"
+    role_name          = "Contributor"
+    description        = "Developers with sandbox access"
+  }
+}
+
+# =============================================================================
+# MANAGED IDENTITIES (Disabled by default - enable when needed)
+# =============================================================================
+# To enable, set deploy_managed_identities = true and configure below
+# =============================================================================
+
+managed_identities = {
+  # Example: Terraform CI/CD Identity
+  # terraform-platform = {
+  #   name        = "uami-terraform-platform-aue-001"
+  #   description = "CI/CD Terraform for Landing Zone deployment"
+  #   role_assignments = {
+  #     owner-root = {
+  #       scope_type = "management_group"
+  #       scope_name = "intelly"
+  #       role_name  = "Owner"
+  #     }
+  #   }
+  # }
+
+  # Example: Automation Runbooks Identity
+  # automation-runbooks = {
+  #   name        = "uami-automation-runbooks-aue-001"
+  #   description = "Azure Automation Runbooks"
+  #   role_assignments = {
+  #     contributor-management = {
+  #       scope_type = "subscription"
+  #       scope_id   = "b016bf4d-0eda-4613-b434-4d1fb841c3cb"
+  #       role_name  = "Contributor"
+  #     }
+  #   }
+  # }
+}

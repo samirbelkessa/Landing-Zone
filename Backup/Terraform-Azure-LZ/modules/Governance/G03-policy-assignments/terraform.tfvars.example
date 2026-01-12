@@ -1,0 +1,102 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║ terraform.tfvars - G03 Policy Assignments for Australia Landing Zone         ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CAF Automatic Assignments
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Enable CAF automatic assignments
+deploy_caf_assignments = true
+
+# Management Group IDs (from F01 output)
+# Replace with actual values from your deployment
+caf_management_groups = {
+  root           = "/providers/Microsoft.Management/managementGroups/contoso-root"
+  platform       = "/providers/Microsoft.Management/managementGroups/contoso-platform"
+  connectivity   = "/providers/Microsoft.Management/managementGroups/contoso-connectivity"
+  identity       = "/providers/Microsoft.Management/managementGroups/contoso-identity"
+  management     = "/providers/Microsoft.Management/managementGroups/contoso-management"
+  landing_zones  = "/providers/Microsoft.Management/managementGroups/contoso-landing-zones"
+  online_prod    = "/providers/Microsoft.Management/managementGroups/contoso-online-prod"
+  online_nonprod = "/providers/Microsoft.Management/managementGroups/contoso-online-nonprod"
+  corp_prod      = "/providers/Microsoft.Management/managementGroups/contoso-corp-prod"
+  corp_nonprod   = "/providers/Microsoft.Management/managementGroups/contoso-corp-nonprod"
+  sandbox        = "/providers/Microsoft.Management/managementGroups/contoso-sandbox"
+  decommissioned = "/providers/Microsoft.Management/managementGroups/contoso-decommissioned"
+}
+
+# Initiative IDs (from G02 output - module.policy_set_definitions.all_initiative_ids)
+# Replace with actual values from your deployment
+caf_initiative_ids = {
+  "caf-governance-baseline" = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-governance-baseline"
+  "caf-security-baseline"   = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-security-baseline"
+  "caf-network-baseline"    = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-network-baseline"
+  "caf-monitoring-baseline" = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-monitoring-baseline"
+  "caf-backup-baseline"     = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-backup-baseline"
+  "caf-cost-baseline"       = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-cost-baseline"
+  "caf-identity-baseline"   = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-identity-baseline"
+  "caf-online-prod"         = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-online-prod"
+  "caf-online-nonprod"      = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-online-nonprod"
+  "caf-corp-prod"           = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-corp-prod"
+  "caf-corp-nonprod"        = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-corp-nonprod"
+  "caf-sandbox"             = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-sandbox"
+  "caf-decommissioned"      = "/providers/Microsoft.Management/managementGroups/contoso-root/providers/Microsoft.Authorization/policySetDefinitions/caf-decommissioned"
+}
+
+# Built-in initiative IDs (from G02 output - module.policy_set_definitions.builtin_initiatives_for_assignment)
+caf_builtin_initiative_ids = {
+  azure_security_benchmark = "/providers/Microsoft.Authorization/policySetDefinitions/1f3afdf9-d0c9-4c3d-847f-89da613e70a8"
+  vm_insights              = "/providers/Microsoft.Authorization/policySetDefinitions/924bfe3a-762f-40e7-86dd-5c8b95eb09e6"
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Parameters for Australia Project
+# ══════════════════════════════════════════════════════════════════════════════
+
+default_location           = "australiaeast"
+log_analytics_workspace_id = "/subscriptions/xxx/resourceGroups/rg-management-aue-001/providers/Microsoft.OperationalInsights/workspaces/law-central-aue-001"
+allowed_regions            = ["australiaeast", "australiasoutheast"]
+required_tags              = ["Environment", "Owner", "CostCenter", "Application", "Criticality"]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Role Assignments
+# ══════════════════════════════════════════════════════════════════════════════
+
+create_role_assignments = true
+
+# Default role is Contributor - override per assignment if needed
+# default_role_definition_id = "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Custom Manual Assignments (Optional)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Uncomment to add custom assignments alongside CAF assignments
+# management_group_assignments = {
+#   "custom-require-https-app-service" = {
+#     management_group_id      = "/providers/Microsoft.Management/managementGroups/contoso-online-prod"
+#     policy_definition_id     = "/providers/Microsoft.Authorization/policyDefinitions/a4af4a39-4135-47fb-b175-47fbdf85311d"
+#     display_name             = "Require HTTPS for App Service"
+#     description              = "Ensures all App Services use HTTPS only."
+#     enforce                  = true
+#     identity_type            = "None"
+#     non_compliance_message   = "This App Service must use HTTPS only. Configure 'HTTPS Only' setting to On."
+#   }
+# }
+
+# subscription_assignments = {}
+# resource_group_assignments = {}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tags
+# ══════════════════════════════════════════════════════════════════════════════
+
+tags = {
+  Environment = "Production"
+  Owner       = "platform-team@company.com"
+  CostCenter  = "IT-PLATFORM-001"
+  Application = "Azure Landing Zone"
+  Project     = "Australia CAF"
+  ManagedBy   = "Terraform"
+}

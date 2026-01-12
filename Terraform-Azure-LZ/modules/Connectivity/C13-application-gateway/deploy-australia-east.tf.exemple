@@ -1,0 +1,284 @@
+# -----------------------------------------------------------------------------
+# APPLICATION GATEWAY DEPLOYMENT - AUSTRALIA PROJECT
+# Hub Connectivity - Centralized WAF
+# -----------------------------------------------------------------------------
+# 
+# This deployment creates:
+# 1. Resource Group for Application Gateway (rg-appgw-aue-001)
+# 2. ApplicationGatewaySubnet in Hub VNet (10.0.1.192/26)
+# 3. Application Gateway with WAF v2
+# 4. WAF Policy with OWASP 3.2 rules
+# 5. Diagnostic settings to Log Analytics
+#
+# Prerequisites:
+# - Hub VNet deployed (C01)
+# - Log Analytics Workspace deployed (M01)
+# - User Assigned Managed Identity (I03) - for Key Vault integration
+# -----------------------------------------------------------------------------
+
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 3.80.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+# =============================================================================
+# LOCAL VARIABLES
+# Naming conventions (F02) and Tags (F03) integration
+# =============================================================================
+
+locals {
+  # Project settings
+  project     = "lz"
+  environment = "prod"
+
+  # Regions
+  regions = {
+    primary = {
+      name     = "australiaeast"
+      short    = "aue"
+      zones    = ["1", "2", "3"]
+      hub_cidr = "10.0.0.0/22"
+      appgw_subnet_cidr = "10.0.1.192/26"  # Reserved space in IP Plan
+    }
+    dr = {
+      name     = "australiasoutheast"
+      short    = "ause"
+      zones    = []  # Limited AZ support
+      hub_cidr = "10.1.0.0/22"
+      appgw_subnet_cidr = "10.1.1.192/26"  # Reserved space in IP Plan
+    }
+  }
+
+  # Common tags (F03)
+  common_tags = {
+    Environment        = "Production"
+    Owner              = "Platform Team"
+    CostCenter         = "IT-INFRA-001"
+    Application        = "Hub Connectivity"
+    Criticality        = "High"
+    DataClassification = "Internal"
+    ManagedBy          = "Terraform"
+    Project            = "Azure Landing Zone CAF"
+  }
+}
+
+# =============================================================================
+# DATA SOURCES
+# Reference existing resources
+# =============================================================================
+
+# Existing Hub VNet - Australia East
+data "azurerm_virtual_network" "hub_aue" {
+  name                = "vnet-hub-aue-001"
+  resource_group_name = "rg-connectivity-aue-001"
+}
+
+# Existing Log Analytics Workspace
+data "azurerm_log_analytics_workspace" "central" {
+  name                = "log-${local.project}-${local.regions.primary.short}-001"
+  resource_group_name = "rg-management-${local.regions.primary.short}-001"
+}
+
+# =============================================================================
+# RESOURCE GROUP - APPLICATION GATEWAY
+# Separate RG for RBAC, lifecycle, and billing separation
+# =============================================================================
+
+resource "azurerm_resource_group" "appgw_aue" {
+  name     = "rg-appgw-${local.regions.primary.short}-001"
+  location = local.regions.primary.name
+  tags     = local.common_tags
+}
+
+# =============================================================================
+# SUBNET FOR APPLICATION GATEWAY
+# Using reserved space from IP Plan: 10.0.1.192/26
+# =============================================================================
+
+resource "azurerm_subnet" "appgw_aue" {
+  name                 = "ApplicationGatewaySubnet"
+  resource_group_name  = data.azurerm_virtual_network.hub_aue.resource_group_name
+  virtual_network_name = data.azurerm_virtual_network.hub_aue.name
+  address_prefixes     = [local.regions.primary.appgw_subnet_cidr]
+
+  # No service endpoints needed for AppGW
+  # No delegation required
+}
+
+# =============================================================================
+# USER ASSIGNED MANAGED IDENTITY
+# For Key Vault certificate access
+# =============================================================================
+
+resource "azurerm_user_assigned_identity" "appgw" {
+  name                = "id-appgw-${local.regions.primary.short}-001"
+  resource_group_name = azurerm_resource_group.appgw_aue.name
+  location            = azurerm_resource_group.appgw_aue.location
+  tags                = local.common_tags
+}
+
+# =============================================================================
+# APPLICATION GATEWAY MODULE - AUSTRALIA EAST
+# Centralized WAF with OWASP 3.2 rules
+# =============================================================================
+
+module "application_gateway_aue" {
+  source = "./modules/C13-application-gateway"
+
+  # Required - Naming follows F02 convention: agw-{workload}-{region}-{instance}
+  name                = "agw-hub-${local.regions.primary.short}-001"
+  resource_group_name = azurerm_resource_group.appgw_aue.name
+  subnet_id           = azurerm_subnet.appgw_aue.id
+  location            = local.regions.primary.name
+
+  # SKU Configuration - WAF v2 for production
+  sku_name = "WAF_v2"
+  sku_tier = "WAF_v2"
+
+  # Capacity - Autoscaling enabled
+  autoscale_enabled = true
+  min_capacity      = 2   # Minimum for production HA
+  max_capacity      = 10  # Scale up to 10 instances
+  zones             = local.regions.primary.zones
+
+  # WAF Configuration - OWASP 3.2 in Prevention mode
+  waf_enabled                  = true
+  waf_mode                     = "Prevention"
+  waf_rule_set_type            = "OWASP"
+  waf_rule_set_version         = "3.2"
+  waf_file_upload_limit_mb     = 100
+  waf_max_request_body_size_kb = 128
+
+  # SSL/TLS Policy - TLS 1.2 minimum (CAF requirement)
+  ssl_policy_type = "Predefined"
+  ssl_policy_name = "AppGwSslPolicy20220101S"
+
+  # Enable HTTP/2
+  enable_http2 = true
+
+  # Identity for Key Vault access
+  identity_type = "UserAssigned"
+  identity_ids  = [azurerm_user_assigned_identity.appgw.id]
+
+  # Backend Configuration - Default pool (empty, to be configured per application)
+  backend_address_pools = [
+    {
+      name         = "backend-default"
+      fqdns        = []
+      ip_addresses = []
+    }
+  ]
+
+  # Backend HTTP Settings - Default settings
+  backend_http_settings = [
+    {
+      name                  = "http-settings-default"
+      port                  = 80
+      protocol              = "Http"
+      cookie_based_affinity = "Disabled"
+      request_timeout       = 30
+    },
+    {
+      name                                = "https-settings-default"
+      port                                = 443
+      protocol                            = "Https"
+      cookie_based_affinity               = "Disabled"
+      request_timeout                     = 60
+      pick_host_name_from_backend_address = true
+    }
+  ]
+
+  # Frontend Ports - HTTP and HTTPS
+  frontend_port_settings = [
+    { name = "port-http", port = 80 },
+    { name = "port-https", port = 443 }
+  ]
+
+  # HTTP Listeners - Default HTTP listener
+  http_listeners = [
+    {
+      name               = "listener-http-default"
+      frontend_port_name = "port-http"
+      protocol           = "Http"
+    }
+  ]
+
+  # Request Routing Rules - Default routing
+  request_routing_rules = [
+    {
+      name                       = "rule-http-default"
+      rule_type                  = "Basic"
+      http_listener_name         = "listener-http-default"
+      backend_address_pool_name  = "backend-default"
+      backend_http_settings_name = "http-settings-default"
+      priority                   = 100
+    }
+  ]
+
+  # Diagnostics - Send to Log Analytics
+  enable_diagnostic_settings = true
+  log_analytics_workspace_id = data.azurerm_log_analytics_workspace.central.id
+  diagnostic_logs_categories = [
+    "ApplicationGatewayAccessLog",
+    "ApplicationGatewayPerformanceLog",
+    "ApplicationGatewayFirewallLog"
+  ]
+  diagnostic_metrics_categories = ["AllMetrics"]
+  diagnostic_retention_days     = 90
+
+  # Tags (F03 compliant)
+  tags = local.common_tags
+
+  depends_on = [
+    azurerm_subnet.appgw_aue
+  ]
+}
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+output "application_gateway_id" {
+  description = "Resource ID of the Application Gateway"
+  value       = module.application_gateway_aue.id
+}
+
+output "application_gateway_name" {
+  description = "Name of the Application Gateway"
+  value       = module.application_gateway_aue.name
+}
+
+output "public_ip_address" {
+  description = "Public IP address of the Application Gateway"
+  value       = module.application_gateway_aue.public_ip_address
+}
+
+output "waf_policy_id" {
+  description = "Resource ID of the WAF Policy"
+  value       = module.application_gateway_aue.waf_policy_id
+}
+
+output "backend_pool_ids" {
+  description = "Map of backend pool names to IDs"
+  value       = module.application_gateway_aue.backend_address_pool_ids
+}
+
+output "managed_identity_id" {
+  description = "Resource ID of the User Assigned Managed Identity"
+  value       = azurerm_user_assigned_identity.appgw.id
+}
+
+output "managed_identity_principal_id" {
+  description = "Principal ID of the User Assigned Managed Identity (for Key Vault access policy)"
+  value       = azurerm_user_assigned_identity.appgw.principal_id
+}

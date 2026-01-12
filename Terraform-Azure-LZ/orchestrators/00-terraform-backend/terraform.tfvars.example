@@ -1,0 +1,25 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║ Example tfvars - F00 Terraform Backend (Australia Project)                    ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Management Subscription (Platform)
+# ─────────────────────────────────────────────────────────────────────────────────
+
+management_subscription_id = "ef7442e9-4d15-4a28-939a-f428a3d59487"
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Resources
+# ─────────────────────────────────────────────────────────────────────────────────
+
+resource_group_name  = "rg-terraform-state-aue"
+storage_account_name = "stlzterraformstateaue"
+location             = "australiaeast"
+container_name       = "tfstate"
+
+tags = {
+  Environment = "Management"
+  Owner       = "Platform Team"
+  CostCenter  = "IT-Infrastructure"
+  Application = "Terraform State"
+}

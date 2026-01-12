@@ -1,0 +1,162 @@
+# =============================================================================
+# TERRAFORM.TFVARS - VALEURS POUR LE PROJET AUSTRALIE
+# =============================================================================
+# Ce fichier contient les valeurs spécifiques à ton déploiement
+# ⚠️ NE PAS COMMITER ce fichier s'il contient des secrets !
+# Utiliser Azure Key Vault ou des variables d'environnement pour les secrets
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SUBSCRIPTION & TENANT
+# -----------------------------------------------------------------------------
+# ⚠️ À REMPLACER par tes vraies valeurs
+tenant_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # REMPLACER
+connectivity_subscription_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # REMPLACER
+
+# -----------------------------------------------------------------------------
+# GENERAL SETTINGS
+# -----------------------------------------------------------------------------
+environment  = "Production"
+project_name = "ALZ-Australia"
+owner        = "Platform Team"
+cost_center  = "IT-Infrastructure"
+
+# -----------------------------------------------------------------------------
+# RESOURCE GROUPS
+# -----------------------------------------------------------------------------
+resource_group_name_aue  = "rg-connectivity-aue-001"
+resource_group_name_ause = "rg-connectivity-ause-001"
+
+# -----------------------------------------------------------------------------
+# NETWORKING - AUSTRALIA EAST (PRIMARY)
+# Valeurs de ton IP Plan
+# -----------------------------------------------------------------------------
+hub_vnet_address_space_aue = ["10.0.0.0/22"]
+
+hub_subnets_aue = {
+  gateway_subnet               = "10.0.0.0/26"    # GatewaySubnet
+  firewall_subnet              = "10.0.0.64/26"   # AzureFirewallSubnet
+  firewall_management_subnet   = "10.0.0.128/26"  # AzureFirewallManagementSubnet
+  bastion_subnet               = "10.0.0.192/26"  # AzureBastionSubnet
+  dns_resolver_inbound_subnet  = "10.0.1.0/27"    # snet-hub-dns
+  dns_resolver_outbound_subnet = "10.0.1.32/27"   # snet-hub-dns-out
+  management_subnet            = "10.0.1.64/26"   # snet-hub-mgmt
+  shared_services_subnet       = "10.0.2.0/24"    # snet-hub-shared
+  private_endpoints_subnet     = "10.0.3.0/24"    # snet-hub-pe
+}
+
+# -----------------------------------------------------------------------------
+# NETWORKING - AUSTRALIA SOUTHEAST (DR)
+# Valeurs de ton IP Plan
+# -----------------------------------------------------------------------------
+hub_vnet_address_space_ause = ["10.1.0.0/22"]
+
+hub_subnets_ause = {
+  gateway_subnet               = "10.1.0.0/26"    # GatewaySubnet
+  firewall_subnet              = "10.1.0.64/26"   # AzureFirewallSubnet
+  firewall_management_subnet   = "10.1.0.128/26"  # AzureFirewallManagementSubnet
+  bastion_subnet               = "10.1.0.192/26"  # AzureBastionSubnet
+  dns_resolver_inbound_subnet  = "10.1.1.0/27"    # snet-hub-dns
+  dns_resolver_outbound_subnet = "10.1.1.32/27"   # snet-hub-dns-out
+  management_subnet            = "10.1.1.64/26"   # snet-hub-mgmt
+  shared_services_subnet       = "10.1.2.0/24"    # snet-hub-shared
+  private_endpoints_subnet     = "10.1.3.0/24"    # snet-hub-pe
+}
+
+# -----------------------------------------------------------------------------
+# ROUTING
+# -----------------------------------------------------------------------------
+routing_address_space = [
+  "10.0.0.0/8",      # Classe A privée (inclut tous les spokes)
+  "172.16.0.0/12",   # Classe B privée
+  "192.168.0.0/16"   # Classe C privée (on-premises typiquement)
+]
+
+# -----------------------------------------------------------------------------
+# VPN GATEWAY
+# -----------------------------------------------------------------------------
+enable_vpn_gateway = true
+vpn_gateway_sku    = "VpnGw2AZ"  # Zone-redundant
+
+# Exemple de connexion VPN Site-to-Site
+# ⚠️ Adapter selon ta configuration on-premises
+vpn_connections = {
+  # Décommente et adapte si tu as besoin d'une connexion VPN
+  # onprem-dc1 = {
+  #   name            = "Datacenter-Sydney"
+  #   gateway_address = "203.0.113.1"  # IP publique du VPN on-prem
+  #   address_space   = ["192.168.0.0/16", "172.16.0.0/12"]
+  #   shared_key      = "SuperSecretKey123!"  # ⚠️ Utiliser Key Vault en production
+  #   bgp_enabled     = true
+  #   bgp_asn         = 65001
+  #   bgp_peering_address = "192.168.1.1"
+  #   ipsec_policy = {
+  #     dh_group         = "DHGroup14"
+  #     ike_encryption   = "AES256"
+  #     ike_integrity    = "SHA256"
+  #     ipsec_encryption = "AES256"
+  #     ipsec_integrity  = "SHA256"
+  #     pfs_group        = "PFS14"
+  #   }
+  # }
+}
+
+# -----------------------------------------------------------------------------
+# EXPRESSROUTE GATEWAY
+# -----------------------------------------------------------------------------
+enable_expressroute_gateway = false
+expressroute_gateway_sku    = "ErGw1AZ"
+
+# -----------------------------------------------------------------------------
+# FIREWALL
+# -----------------------------------------------------------------------------
+firewall_sku_tier          = "Premium"      # Premium pour IDPS et TLS inspection
+firewall_zones             = ["1", "2", "3"]
+firewall_threat_intel_mode = "Alert"        # Alert ou Deny
+
+# -----------------------------------------------------------------------------
+# BASTION
+# -----------------------------------------------------------------------------
+bastion_sku         = "Standard"  # Standard pour tunneling et file copy
+bastion_scale_units = 2
+
+# -----------------------------------------------------------------------------
+# DNS
+# -----------------------------------------------------------------------------
+# Serveurs DNS on-premises pour le forwarding
+dns_servers_onprem = []  # Ex: ["192.168.1.10", "192.168.1.11"]
+
+# Zones DNS à forwarder vers on-premises
+dns_forward_zones = {
+  # Décommente et adapte si tu as besoin de forwarding DNS
+  # corp = {
+  #   domain_name = "corp.contoso.com."
+  #   destination_ip_addresses = {
+  #     dc1 = "192.168.1.10"
+  #     dc2 = "192.168.1.11"
+  #   }
+  # }
+  # ad = {
+  #   domain_name = "ad.contoso.com."
+  #   destination_ip_addresses = {
+  #     dc1 = "192.168.1.10"
+  #   }
+  # }
+}
+
+# -----------------------------------------------------------------------------
+# DDOS PROTECTION
+# -----------------------------------------------------------------------------
+# ⚠️ IMPORTANT: Désactivé car tu utilises Cloudflare
+enable_ddos_protection = false
+
+# -----------------------------------------------------------------------------
+# TAGS ADDITIONNELS
+# -----------------------------------------------------------------------------
+tags = {
+  Application   = "Azure Landing Zone"
+  BusinessUnit  = "IT"
+  Compliance    = "Internal"
+  DataClass     = "Confidential"
+  DeploymentType = "Terraform"
+}

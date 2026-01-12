@@ -1,0 +1,952 @@
+################################################################################
+# variables.tf - Management Layer Orchestrator
+################################################################################
+
+#-------------------------------------------------------------------------------
+# PROJECT CONFIGURATION
+#-------------------------------------------------------------------------------
+
+variable "project_name" {
+  description = "Project name for resource naming (e.g., 'platform', 'lz')."
+  type        = string
+  default     = "platform"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", var.project_name)) && length(var.project_name) >= 2
+    error_message = "Project name must be lowercase alphanumeric with optional hyphens."
+  }
+}
+
+variable "environment" {
+  description = "Environment: prod, nonprod, dev, test, uat, stg, sandbox."
+  type        = string
+  default     = "prod"
+
+  validation {
+    condition     = contains(["prod", "nonprod", "dev", "test", "uat", "stg", "sandbox"], var.environment)
+    error_message = "Environment must be one of: prod, nonprod, dev, test, uat, stg, sandbox."
+  }
+}
+
+#-------------------------------------------------------------------------------
+# LOCATION CONFIGURATION
+# NOTE: primary_location and secondary_location come from foundation.tfstate
+# These variables are kept for override capability but should normally not be set
+#-------------------------------------------------------------------------------
+
+# Locations are read from foundation.tfstate via data.tf
+# If you need to override, uncomment these variables:
+#
+# variable "primary_location" {
+#   description = "Primary Azure region (e.g., 'australiaeast'). Normally from foundation."
+#   type        = string
+#   default     = null  # Uses foundation value
+# }
+#
+# variable "secondary_location" {
+#   description = "Secondary Azure region for DR. Normally from foundation."
+#   type        = string
+#   default     = null  # Uses foundation value
+# }
+
+#-------------------------------------------------------------------------------
+# RESOURCE GROUP
+#-------------------------------------------------------------------------------
+
+variable "resource_group_name" {
+  description = "Name of the Management resource group."
+  type        = string
+}
+
+variable "create_resource_group" {
+  description = "Create the resource group if it doesn't exist."
+  type        = bool
+  default     = true
+}
+
+#===============================================================================
+# F02 - NAMING CONVENTION INPUTS
+# NOTE: region is derived from foundation.tfstate primary_location in locals.tf
+# workload uses project_name, instance defaults to "001"
+#===============================================================================
+
+# The 'region' variable is now derived automatically in locals.tf from
+# foundation.tfstate primary_location using the location_abbrev mapping.
+# Example: australiaeast → aue
+
+variable "instance" {
+  description = "Instance number for F02 naming convention (e.g., '001', '002')."
+  type        = string
+  default     = "001"
+
+  validation {
+    condition     = can(regex("^[0-9]{3}$", var.instance))
+    error_message = "Instance must be a 3-digit number (e.g., '001')."
+  }
+}
+#-------------------------------------------------------------------------------
+# TAGGING - F03 Required Inputs
+#-------------------------------------------------------------------------------
+
+variable "owner" {
+  description = "Owner email address for F03 tags (required)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", var.owner))
+    error_message = "Owner must be a valid email address."
+  }
+}
+
+variable "cost_center" {
+  description = "Cost center code for F03 tags (required)."
+  type        = string
+
+  validation {
+    condition     = length(var.cost_center) >= 3 && length(var.cost_center) <= 20
+    error_message = "Cost center must be between 3 and 20 characters."
+  }
+}
+
+variable "application" {
+  description = "Application name for F03 tags."
+  type        = string
+  default     = "Platform Management"
+}
+
+variable "criticality" {
+  description = "Business criticality: Critical, High, Medium, Low."
+  type        = string
+  default     = "Critical"
+}
+
+variable "data_classification" {
+  description = "Data classification: Public, Internal, Confidential, Restricted."
+  type        = string
+  default     = "Internal"
+}
+
+variable "project" {
+  description = "Project name for F03 tags."
+  type        = string
+  default     = "Azure-Landing-Zone"
+}
+
+variable "department" {
+  description = "Department for F03 tags."
+  type        = string
+  default     = null
+}
+
+#-------------------------------------------------------------------------------
+# MODULE DEPLOYMENT FLAGS
+#-------------------------------------------------------------------------------
+
+variable "deploy_m01_log_analytics" {
+  description = "Deploy M01 Log Analytics Workspace."
+  type        = bool
+  default     = true
+}
+
+variable "deploy_m02_automation" {
+  description = "Deploy M02 Automation Account. Requires M01."
+  type        = bool
+  default     = false
+}
+
+variable "deploy_m03_action_groups" {
+  description = "Deploy M03 Action Groups."
+  type        = bool
+  default     = false
+}
+
+
+variable "deploy_m06_update_management" {
+  description = "Deploy M06 Update Management."
+  type        = bool
+  default     = false
+}
+
+variable "deploy_m08_diagnostics_storage" {
+  description = "Deploy M08 Diagnostics Storage Account."
+  type        = bool
+  default     = false
+}
+
+#-------------------------------------------------------------------------------
+# M01 - LOG ANALYTICS CONFIGURATION
+#-------------------------------------------------------------------------------
+
+variable "log_analytics_custom_name" {
+  description = "Custom name for Log Analytics workspace. Auto-generated via F02 if not provided."
+  type        = string
+  default     = null
+}
+
+variable "log_analytics_retention_days" {
+  description = "Interactive retention in days (30-730)."
+  type        = number
+  default     = 90
+}
+
+variable "log_analytics_total_retention_days" {
+  description = "Total retention including archive."
+  type        = number
+  default     = 400
+}
+
+variable "log_analytics_sku" {
+  description = "Log Analytics SKU."
+  type        = string
+  default     = "PerGB2018"
+}
+
+variable "enable_log_analytics_dr" {
+  description = "Create secondary workspace in DR region."
+  type        = bool
+  default     = false
+}
+
+#-------------------------------------------------------------------------------
+# M02 - AUTOMATION ACCOUNT CONFIGURATION
+#-------------------------------------------------------------------------------
+
+variable "automation_custom_name" {
+  description = "Custom name for Automation Account. Auto-generated via F02 if not provided."
+  type        = string
+  default     = null
+}
+
+variable "automation_public_access" {
+  description = "Allow public network access to Automation Account."
+  type        = bool
+  default     = true
+}
+
+variable "deploy_default_runbooks" {
+  description = "Deploy default platform runbooks."
+  type        = bool
+  default     = true
+}
+
+variable "deploy_default_schedules" {
+  description = "Deploy default schedules."
+  type        = bool
+  default     = true
+}
+
+#-------------------------------------------------------------------------------
+# M03 - ACTION GROUPS CONFIGURATION
+# À ajouter dans orchestrator-lza-mng/variables.tf après les variables M02
+#-------------------------------------------------------------------------------
+
+variable "action_groups_custom_name" {
+  description = "Custom name for Action Groups base name. Auto-generated via F02 if not provided."
+  type        = string
+  default     = null
+}
+
+variable "create_default_action_groups" {
+  description = "Create default action groups (Critical, Warning, Info)."
+  type        = bool
+  default     = true
+}
+
+variable "default_email_receivers" {
+  description = "Default email receivers for built-in action groups."
+  type = list(object({
+    name          = string
+    email_address = string
+  }))
+  default = []
+}
+
+variable "default_webhook_url" {
+  description = "Default webhook URL for action groups (e.g., Teams, Slack)."
+  type        = string
+  default     = null
+}
+
+variable "custom_action_groups" {
+  description = "Map of custom action groups to create in addition to defaults."
+  type = map(object({
+    short_name = string
+    enabled    = optional(bool, true)
+
+    email_receivers = optional(list(object({
+      name                    = string
+      email_address           = string
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    sms_receivers = optional(list(object({
+      name         = string
+      country_code = string
+      phone_number = string
+    })), [])
+
+    webhook_receivers = optional(list(object({
+      name                    = string
+      service_uri             = string
+      use_common_alert_schema = optional(bool, true)
+      aad_auth = optional(object({
+        object_id      = string
+        identifier_uri = optional(string)
+        tenant_id      = optional(string)
+      }))
+    })), [])
+
+    azure_function_receivers = optional(list(object({
+      name                     = string
+      function_app_resource_id = string
+      function_name            = string
+      http_trigger_url         = string
+      use_common_alert_schema  = optional(bool, true)
+    })), [])
+
+    logic_app_receivers = optional(list(object({
+      name                    = string
+      resource_id             = string
+      callback_url            = string
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    automation_runbook_receivers = optional(list(object({
+      name                    = string
+      automation_account_id   = string
+      runbook_name            = string
+      webhook_resource_id     = string
+      is_global_runbook       = optional(bool, false)
+      service_uri             = string
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    voice_receivers = optional(list(object({
+      name         = string
+      country_code = string
+      phone_number = string
+    })), [])
+
+    arm_role_receivers = optional(list(object({
+      name                    = string
+      role_id                 = string
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    event_hub_receivers = optional(list(object({
+      name                    = string
+      event_hub_namespace     = optional(string)
+      event_hub_name          = optional(string)
+      subscription_id         = optional(string)
+      tenant_id               = optional(string)
+      use_common_alert_schema = optional(bool, true)
+    })), [])
+
+    itsm_receivers = optional(list(object({
+      name                 = string
+      workspace_id         = string
+      connection_id        = string
+      ticket_configuration = string
+      region               = string
+    })), [])
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# M04 - MONITOR ALERTS CONFIGURATION
+# À ajouter dans orchestrator-lza-mng/variables.tf après la section M03
+#-------------------------------------------------------------------------------
+
+variable "deploy_m04_alerts" {
+  description = "Deploy M04 Monitor Alerts module. Requires M01 and M03 to be deployed."
+  type        = bool
+  default     = false
+}
+
+variable "alerts_custom_name_prefix" {
+  description = "Custom name prefix for alerts. Auto-generated via F02 if not provided."
+  type        = string
+  default     = null
+}
+
+variable "create_default_alerts" {
+  description = "Create default platform alerts (Service Health, Resource Health, Activity Log)."
+  type        = bool
+  default     = true
+}
+
+
+#===============================================================================
+# M06 - UPDATE MANAGEMENT CONFIGURATION
+#===============================================================================
+
+variable "update_management_custom_name_prefix" {
+  description = "Custom name prefix for M06 (bypasses F02 if set)."
+  type        = string
+  default     = null
+}
+
+variable "create_default_windows_config" {
+  description = "Create default Windows Maintenance Configuration."
+  type        = bool
+  default     = false
+}
+
+variable "create_default_linux_config" {
+  description = "Create default Linux Maintenance Configuration."
+  type        = bool
+  default     = false
+}
+
+variable "default_timezone" {
+  description = "Default timezone for maintenance windows."
+  type        = string
+  default     = "UTC"
+}
+
+variable "update_target_locations" {
+  description = "Default Azure regions to target for updates."
+  type        = list(string)
+  default     = []
+}
+
+variable "maintenance_configurations" {
+  description = "Map of custom Maintenance Configurations."
+  type        = any
+  default     = {}
+}
+
+variable "vm_assignments" {
+  description = "Map of static VM assignments."
+  type        = any
+  default     = {}
+}
+
+variable "dynamic_scope_assignments" {
+  description = "Map of dynamic scope assignments."
+  type        = any
+  default     = {}
+}
+
+variable "update_management_additional_tags" {
+  description = "Additional tags for Update Management resources."
+  type        = map(string)
+  default     = {}
+}
+
+#===============================================================================
+# M07 - DATA COLLECTION RULES CONFIGURATION
+#===============================================================================
+
+variable "deploy_m07_dcr" {
+  description = "Deploy M07 Data Collection Rules. Requires M01."
+  type        = bool
+  default     = false
+}
+
+variable "enable_dcr_associations" {
+  description = <<-EOT
+    Enable manual DCR associations to VMs.
+    Set to false for new Landing Zones (use Azure Policy G03 instead).
+    Set to true for brownfield environments with existing VMs.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "dcr_custom_configurations" {
+  description = <<-EOT
+    Optional custom DCR configurations to merge with the 10 recommended DCRs.
+    Use this to add additional DCRs without modifying locals.
+    Structure matches var.data_collection_rules in M07 module.
+  EOT
+  type        = any
+  default     = {}
+}
+
+variable "disable_default_dcrs" {
+  description = <<-EOT
+    Disable the 10 recommended default DCRs.
+    Set to true if you want to use only custom DCRs via var.dcr_custom_configurations.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "dcr_windows_perf_sampling_frequency" {
+  description = "Sampling frequency in seconds for Windows performance counters (60-3600)."
+  type        = number
+  default     = 60
+  
+  validation {
+    condition     = var.dcr_windows_perf_sampling_frequency >= 60 && var.dcr_windows_perf_sampling_frequency <= 3600
+    error_message = "Sampling frequency must be between 60 and 3600 seconds."
+  }
+}
+
+variable "dcr_linux_perf_sampling_frequency" {
+  description = "Sampling frequency in seconds for Linux performance counters (60-3600)."
+  type        = number
+  default     = 60
+  
+  validation {
+    condition     = var.dcr_linux_perf_sampling_frequency >= 60 && var.dcr_linux_perf_sampling_frequency <= 3600
+    error_message = "Sampling frequency must be between 60 and 3600 seconds."
+  }
+}
+
+variable "enable_dcr_cost_optimization" {
+  description = <<-EOT
+    Enable KQL transformations in DCRs to filter data before ingestion.
+    Reduces Log Analytics costs by 30-50% but may filter out some events.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "dcr_iis_log_directories" {
+  description = "IIS log directories to monitor for DCR #7 (Windows IIS Logs)."
+  type        = list(string)
+  default     = ["C:\\inetpub\\logs\\LogFiles"]
+}
+
+variable "dcr_custom_app_log_patterns" {
+  description = "File patterns for custom application logs (DCR #10)."
+  type        = list(string)
+  default = [
+    "C:\\Logs\\myapp\\*.log",
+    "C:\\AppLogs\\*.txt"
+  ]
+}
+
+variable "dcr_additional_tags" {
+  description = "Additional tags to apply to all DCR resources (merged with M01 tags)."
+  type        = map(string)
+  default     = {}
+}
+
+# ============================================================================
+# DIAGNOSTIC SETTINGS (Optional)
+# ============================================================================
+
+variable "enable_diagnostic_settings" {
+  description = "Enable diagnostic settings for management resources"
+  type        = bool
+  default     = true
+}
+
+variable "diagnostic_settings_config" {
+  description = "Configuration for diagnostic settings on management resources"
+  type = object({
+    
+    storage_account_id             = optional(string)
+    log_analytics_destination_type = optional(string, "Dedicated")
+    logs_retention_days            = optional(number, 90)
+    metrics_retention_days         = optional(number, 90)
+  })
+  default = null
+}
+
+
+
+#-------------------------------------------------------------------------------
+# Service Health Alert Configuration
+#-------------------------------------------------------------------------------
+
+variable "service_health_alert_config" {
+  description = "Configuration for Service Health alerts."
+  type = object({
+    enabled     = optional(bool, true)
+    name        = optional(string, "Service Health Alert")
+    description = optional(string, "Alert for Azure service health incidents and maintenance")
+    event_types = optional(list(string), ["Incident", "Maintenance"])
+    regions     = optional(list(string), ["Australia East", "Australia Southeast", "Global"])
+    services    = optional(list(string), [])
+    severity    = optional(string, "critical")
+  })
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Resource Health Alert Configuration
+#-------------------------------------------------------------------------------
+
+variable "resource_health_alert_config" {
+  description = "Configuration for Resource Health alerts."
+  type = object({
+    enabled         = optional(bool, true)
+    name            = optional(string, "Resource Health Alert")
+    description     = optional(string, "Alert for Azure resource health degradation")
+    current_states  = optional(list(string), ["Degraded", "Unavailable"])
+    previous_states = optional(list(string), ["Available"])
+    reason_types    = optional(list(string), ["PlatformInitiated", "Unknown"])
+    severity        = optional(string, "warning")
+  })
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Activity Log Administrative Alert Configuration
+#-------------------------------------------------------------------------------
+
+variable "activity_log_admin_alert_config" {
+  description = "Configuration for Activity Log Administrative alerts (delete operations)."
+  type = object({
+    enabled     = optional(bool, true)
+    name        = optional(string, "Critical Resource Deletion Alert")
+    description = optional(string, "Alert for delete operations on critical resources")
+    operation_names = optional(list(string), [
+      "Microsoft.Resources/subscriptions/resourceGroups/delete",
+      "Microsoft.Compute/virtualMachines/delete",
+      "Microsoft.Sql/servers/delete",
+      "Microsoft.Storage/storageAccounts/delete",
+      "Microsoft.KeyVault/vaults/delete",
+      "Microsoft.Network/virtualNetworks/delete",
+      "Microsoft.RecoveryServices/vaults/delete"
+    ])
+    severity = optional(string, "warning")
+  })
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Activity Log Security Alert Configuration
+#-------------------------------------------------------------------------------
+
+variable "activity_log_security_alert_config" {
+  description = "Configuration for Activity Log Security alerts (policy violations)."
+  type = object({
+    enabled     = optional(bool, true)
+    name        = optional(string, "Security Policy Violation Alert")
+    description = optional(string, "Alert for security-related events and policy violations")
+    operation_names = optional(list(string), [
+      "Microsoft.Authorization/policyAssignments/delete",
+      "Microsoft.Authorization/policyExemptions/write",
+      "Microsoft.Security/securityContacts/delete",
+      "Microsoft.Security/pricings/write"
+    ])
+    categories = optional(list(string), ["Security", "Policy"])
+    severity   = optional(string, "security")
+  })
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Custom Activity Log Alerts
+#-------------------------------------------------------------------------------
+
+variable "custom_activity_log_alerts" {
+  description = "Map of custom Activity Log alerts to create."
+  type = map(object({
+    description    = optional(string, "Custom Activity Log Alert")
+    enabled        = optional(bool, true)
+    scopes         = optional(list(string), [])
+    operation_name = optional(string, null)
+    category       = optional(string, "Administrative")
+    level          = optional(string, null)
+    status         = optional(string, null)
+    severity       = optional(string, "warning")
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Custom Metric Alerts
+#-------------------------------------------------------------------------------
+
+variable "custom_metric_alerts" {
+  description = "Map of custom metric alerts to create. Scopes should reference module outputs."
+  type = map(object({
+    description              = optional(string, "Custom Metric Alert")
+    enabled                  = optional(bool, true)
+    scopes                   = list(string)
+    severity_level           = optional(number, 2)
+    frequency                = optional(string, "PT5M")
+    window_size              = optional(string, "PT15M")
+    auto_mitigate            = optional(bool, true)
+    target_resource_type     = optional(string, null)
+    target_resource_location = optional(string, null)
+    criteria = list(object({
+      metric_namespace        = string
+      metric_name             = string
+      aggregation             = string
+      operator                = string
+      threshold               = number
+      skip_metric_validation  = optional(bool, false)
+      dimension = optional(list(object({
+        name     = string
+        operator = string
+        values   = list(string)
+      })), [])
+    }))
+    dynamic_criteria = optional(list(object({
+      metric_namespace          = string
+      metric_name               = string
+      aggregation               = string
+      operator                  = string
+      alert_sensitivity         = string
+      evaluation_total_count    = optional(number, 4)
+      evaluation_failure_count  = optional(number, 4)
+      ignore_data_before        = optional(string, null)
+      skip_metric_validation    = optional(bool, false)
+    })), [])
+    severity = optional(string, "warning")
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Custom Log Query Alerts
+#-------------------------------------------------------------------------------
+
+variable "custom_log_query_alerts" {
+  description = "Map of custom Log Analytics query alerts to create."
+  type = map(object({
+    description              = optional(string, "Custom Log Query Alert")
+    enabled                  = optional(bool, true)
+    location                 = optional(string, "australiaeast")
+    scopes                   = list(string)
+    severity_level           = optional(number, 2)
+    evaluation_frequency     = optional(string, "PT5M")
+    window_duration          = optional(string, "PT15M")
+    query                    = string
+    threshold                = optional(number, 0)
+    operator                 = optional(string, "GreaterThan")
+    time_aggregation_method  = optional(string, "Count")
+    metric_measure_column    = optional(string, null)
+    resource_id_column       = optional(string, null)
+    auto_mitigation_enabled  = optional(bool, true)
+    skip_query_validation    = optional(bool, false)
+    failing_periods = optional(object({
+      minimum_failing_periods_to_trigger_alert = number
+      number_of_evaluation_periods             = number
+    }), null)
+    severity = optional(string, "warning")
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Severity to Action Group Mapping
+#-------------------------------------------------------------------------------
+
+variable "severity_action_group_mapping" {
+  description = "Custom mapping of severity levels to action group keys from M03."
+  type        = map(string)
+  default = {
+    critical = "critical"
+    high     = "critical"
+    warning  = "warning"
+    medium   = "warning"
+    info     = "info"
+    low      = "info"
+    security = "security"
+    backup   = "backup"
+    network  = "network"
+  }
+}
+
+#===============================================================================
+# M08 - DIAGNOSTICS STORAGE ACCOUNT CONFIGURATION
+#===============================================================================
+
+variable "diagnostics_storage_custom_name" {
+  description = "Custom name for Storage Account (bypasses F02 if set). Must be 3-24 chars, lowercase alphanumeric only."
+  type        = string
+  default     = null
+}
+
+#-------------------------------------------------------------------------------
+# Storage Account Settings
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_account_tier" {
+  description = "Storage account tier: Standard or Premium."
+  type        = string
+  default     = "Standard"
+}
+
+variable "diagnostics_storage_replication_type" {
+  description = "Storage replication type: LRS, GRS, RAGRS, ZRS. Null = auto (GRS for prod, LRS for non-prod)."
+  type        = string
+  default     = null
+}
+
+variable "diagnostics_storage_account_kind" {
+  description = "Storage account kind: StorageV2, BlobStorage, Storage."
+  type        = string
+  default     = "StorageV2"
+}
+
+variable "diagnostics_storage_access_tier" {
+  description = "Storage access tier: Hot or Cool."
+  type        = string
+  default     = "Hot"
+}
+
+variable "diagnostics_storage_min_tls_version" {
+  description = "Minimum TLS version for storage account."
+  type        = string
+  default     = "TLS1_2"
+}
+
+#-------------------------------------------------------------------------------
+# Security Settings
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_shared_access_key_enabled" {
+  description = "Enable shared access key authentication."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_public_network_access" {
+  description = "Enable public network access to storage account."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_infrastructure_encryption" {
+  description = "Enable double encryption at infrastructure level."
+  type        = bool
+  default     = false
+}
+
+variable "diagnostics_storage_network_rules" {
+  description = "Network rules for storage account."
+  type = object({
+    default_action             = optional(string, "Deny")
+    bypass                     = optional(list(string), ["AzureServices", "Logging", "Metrics"])
+    ip_rules                   = optional(list(string), [])
+    virtual_network_subnet_ids = optional(list(string), [])
+  })
+  default = null
+}
+
+#-------------------------------------------------------------------------------
+# Blob Properties
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_blob_retention_days" {
+  description = "Number of days to retain deleted blobs (soft delete). 0 to disable."
+  type        = number
+  default     = 7
+}
+
+variable "diagnostics_storage_container_retention_days" {
+  description = "Number of days to retain deleted containers (soft delete). 0 to disable."
+  type        = number
+  default     = 7
+}
+
+variable "diagnostics_storage_versioning_enabled" {
+  description = "Enable blob versioning."
+  type        = bool
+  default     = false
+}
+
+variable "diagnostics_storage_change_feed_enabled" {
+  description = "Enable blob change feed."
+  type        = bool
+  default     = false
+}
+
+variable "diagnostics_storage_change_feed_retention_days" {
+  description = "Days to retain change feed data."
+  type        = number
+  default     = 7
+}
+
+#-------------------------------------------------------------------------------
+# Containers
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_create_default_containers" {
+  description = "Create default diagnostic containers (bootdiagnostics, insights-logs, etc.)."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_additional_containers" {
+  description = "Map of additional containers to create."
+  type = map(object({
+    container_access_type = optional(string, "private")
+    metadata              = optional(map(string), {})
+  }))
+  default = {}
+}
+
+#-------------------------------------------------------------------------------
+# Lifecycle Management
+#-------------------------------------------------------------------------------
+
+
+
+variable "enable_m01_archive_to_storage" {
+  description = "Archive M01 Log Analytics logs to M08 Storage Account."
+  type        = bool
+  default     = true
+}
+
+variable "enable_m08_self_diagnostics" {
+  description = "Send M08 Storage Account diagnostics to M01 Log Analytics (Phase 2)."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_enable_lifecycle" {
+  description = "Enable blob lifecycle management policies."
+  type        = bool
+  default     = true
+}
+
+variable "diagnostics_storage_tier_to_cool_days" {
+  description = "Days before tiering blobs from Hot to Cool tier."
+  type        = number
+  default     = 30
+}
+
+variable "diagnostics_storage_tier_to_archive_days" {
+  description = "Days before tiering blobs from Cool to Archive tier."
+  type        = number
+  default     = 90
+}
+
+variable "diagnostics_storage_delete_days" {
+  description = "Days before deleting blobs. 400 = ~1.1 years (per client requirements)."
+  type        = number
+  default     = 400
+}
+
+variable "diagnostics_storage_lifecycle_rules" {
+  description = "Custom lifecycle rules. If empty, default rules will be used."
+  type = map(object({
+    enabled                            = optional(bool, true)
+    prefix_match                       = optional(list(string), [])
+    blob_types                         = optional(list(string), ["blockBlob"])
+    tier_to_cool_after_days            = optional(number, 30)
+    tier_to_archive_after_days         = optional(number, 90)
+    delete_after_days                  = optional(number, 400)
+    delete_snapshot_after_days         = optional(number, 90)
+    tier_to_cold_after_days            = optional(number, null)
+    auto_tier_to_hot_from_cool_enabled = optional(bool, false)
+  }))
+  default = {}
+}
+
+variable "enable_la_linked_storage" {
+  description = "Link M08 Storage Account to M01 Log Analytics for custom logs, queries, and alerts."
+  type        = bool
+  default     = true
+}
+
+#-------------------------------------------------------------------------------
+# Additional Tags
+#-------------------------------------------------------------------------------
+
+variable "diagnostics_storage_additional_tags" {
+  description = "Additional tags for diagnostics storage account resources."
+  type        = map(string)
+  default     = {}
+}

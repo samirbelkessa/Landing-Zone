@@ -1,0 +1,15 @@
+################################################################################
+# versions.tf - M02 Automation Account Module
+# Terraform and Provider Constraints
+################################################################################
+
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 4.57.0"
+    }
+  }
+}
