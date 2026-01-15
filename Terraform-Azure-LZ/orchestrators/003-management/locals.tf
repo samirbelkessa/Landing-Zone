@@ -7,7 +7,8 @@ locals {
   # ════════════════════════════════════════════════════════════════════════════
   # Foundation Outputs (from remote state)
   # ════════════════════════════════════════════════════════════════════════════
-
+  module_ref = "c4ed1ec2172950bba7bcabacf70187e0ddab5533"
+  module_repo = "git::https://github.com/samirbelkessa/Landing-Zone.git"
   foundation  = data.terraform_remote_state.foundation.outputs
   governance  = data.terraform_remote_state.governance.outputs
 

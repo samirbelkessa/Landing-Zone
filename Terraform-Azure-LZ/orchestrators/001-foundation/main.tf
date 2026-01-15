@@ -11,8 +11,8 @@
 # This is the foundation for ALL other orchestrators
 
 module "management_groups" {
-  source = "../../modules/Fondations/F01-management-groups"
-
+  #source = "../../modules/Fondations/F01-management-groups"
+  source = "git::https://github.com/samirbelkessa/Landing-Zone//Terraform-Azure-LZ/modules/Fondations/F01-management-groups?ref=3f0af3e100a45dcb2e06b44657cb71efee99ca8f"
   # ════════════════════════════════════════════════════════════════════════════
   # Required - Organization Identity
   # ════════════════════════════════════════════════════════════════════════════

@@ -1,3 +1,6 @@
+
+
+
 ################################################################################
 # main.tf - Management Layer Orchestrator
 # Module Orchestration with F02 and F03 Integration
@@ -8,7 +11,7 @@
 #-------------------------------------------------------------------------------
 
 module "tags_rg" {
-  source = "../../modules/Fondations/F03-tags"
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Fondations/F03-tags?ref=${local.module_ref}"
 
   environment         = local.f03_environment
   owner               = var.owner
@@ -40,7 +43,7 @@ resource "azurerm_resource_group" "management" {
 ################################################################################
 
 module "m01_log_analytics" {
-  source = "../../modules/Management/M01-log-analytics-workspace"
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M01-log-analytics-workspace?ref=${local.module_ref}"
   count  = var.deploy_m01_log_analytics ? 1 : 0
 
   #-----------------------------------------------------------------------------
@@ -123,7 +126,7 @@ module "m01_log_analytics" {
 ################################################################################
 
 module "m02_automation_account" {
-  source = "../../modules/Management/M02-automation-account"
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M02-automation-account?ref=${local.module_ref}"
   count  = local.m02_can_deploy ? 1 : 0
 
   #-----------------------------------------------------------------------------
@@ -186,7 +189,7 @@ module "m02_automation_account" {
 ################################################################################
 
 module "m03_action_groups" {
-  source = "../../modules/Management/M03-monitor-action-groups"
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M03-monitor-action-groups?ref=${local.module_ref}"
   count  = local.m03_can_deploy ? 1 : 0
 
   #-----------------------------------------------------------------------------
@@ -238,7 +241,7 @@ module "m03_action_groups" {
 ################################################################################
 
 module "m04_monitor_alerts" {
-  source = "../../modules/Management/M04-monitor-alerts"
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M04-monitor-alerts?ref=${local.module_ref}"
   count  = local.m04_can_deploy ? 1 : 0
 
   #-----------------------------------------------------------------------------
@@ -320,7 +323,7 @@ module "m04_monitor_alerts" {
 # Diagnostic settings for Log Analytics Workspace
 module "law_diagnostics" {
   count  = var.enable_diagnostic_settings && var.diagnostic_settings_config != null ? 1 : 0
-  source = "../../modules/Management/M05-diagnostic-settings"
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M05-diagnostic-settings?ref=${local.module_ref}"
 
   target_resource_id         = module.m01_log_analytics[0].id
   name                       = "diag-${module.m01_log_analytics[0].name}"
@@ -343,7 +346,7 @@ module "law_diagnostics" {
 # Diagnostic settings for Automation Account
 module "automation_diagnostics" {
   count  = var.enable_diagnostic_settings && var.diagnostic_settings_config != null ? 1 : 0
-  source = "../../modules/Management/M05-diagnostic-settings"
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M05-diagnostic-settings?ref=${local.module_ref}"
 
   target_resource_id         = module.m02_automation_account[0].id
   name                       = "diag-${module.m02_automation_account[0].name}"
@@ -367,7 +370,7 @@ module "automation_diagnostics" {
 
 module "m06_update_management" {
   count  = var.deploy_m06_update_management ? 1 : 0
-  source = "../../modules/Management/M06-update-management"
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M06-update-management?ref=${local.module_ref}"
 
   #-----------------------------------------------------------------------------
   # F02 Naming Convention inputs
@@ -445,8 +448,7 @@ module "m06_update_management" {
 
 module "m07_data_collection_rules" {
   count  = var.deploy_m07_dcr ? 1 : 0
-  source = "../../modules/Management/M07-data-collection-rules"
-  
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M07-data-collection-rules?ref=${local.module_ref}"
   #-----------------------------------------------------------------------------
   # DCR Configurations
   #-----------------------------------------------------------------------------
@@ -491,8 +493,7 @@ module "m07_data_collection_rules" {
 
 module "m08_diagnostics_storage" {
   count  = local.m08_can_deploy ? 1 : 0
-  source = "../../modules/Management/M08-diagnostics-storage-account"
-
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M08-diagnostics-storage-account?ref=${local.module_ref}"
   #-----------------------------------------------------------------------------
   # F02 Naming Convention inputs
   #-----------------------------------------------------------------------------
@@ -598,8 +599,7 @@ module "m08_diagnostics_storage" {
 
 module "m08_self_diagnostics" {
   count  = local.m08_self_diagnostics_can_deploy ? 1 : 0
-  source = "../../modules/Management/M05-diagnostic-settings"
-
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M05-diagnostic-settings?ref=${local.module_ref}"
   target_resource_id             = module.m08_diagnostics_storage[0].id
   name                           = "diag-${module.m08_diagnostics_storage[0].name}"
   log_analytics_workspace_id     = module.m01_log_analytics[0].id
@@ -624,8 +624,7 @@ module "m08_self_diagnostics" {
 
 module "m08_blob_diagnostics" {
   count  = local.m08_self_diagnostics_can_deploy ? 1 : 0
-  source = "../../modules/Management/M05-diagnostic-settings"
-
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M05-diagnostic-settings?ref=${local.module_ref}"
   target_resource_id             = "${module.m08_diagnostics_storage[0].id}/blobServices/default"
   name                           = "diag-${module.m08_diagnostics_storage[0].name}-blob"
   log_analytics_workspace_id     = module.m01_log_analytics[0].id

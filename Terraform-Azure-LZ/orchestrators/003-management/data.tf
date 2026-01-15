@@ -19,7 +19,7 @@ data "terraform_remote_state" "foundation" {
     resource_group_name  = "rg-intelly-terraform-state"
     storage_account_name = "stintellytfstate"
     container_name       = "tfstate"
-    key                  = "foundation.tfstate"
+    key                  = "cc1f980d-ea3d-4c6e-b6b8-9c683d76ab97"
   }
 }
 
@@ -39,7 +39,7 @@ data "terraform_remote_state" "governance" {
     resource_group_name  = "rg-intelly-terraform-state"
     storage_account_name = "stintellytfstate"
     container_name       = "tfstate"
-    key                  = "governance.tfstate"
+    key                  = "fb132190-355b-4f3a-95e7-71faf12f4f7d"
   }
 }
 

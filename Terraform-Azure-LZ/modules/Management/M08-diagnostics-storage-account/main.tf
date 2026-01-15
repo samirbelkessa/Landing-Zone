@@ -22,7 +22,7 @@ module "naming" {
 #-------------------------------------------------------------------------------
 
 module "tags" {
-  source = "../../Fondations/F03-tags"
+  source = "git::https://github.com/samirbelkessa/Landing-Zone.git//Terraform-Azure-LZ/modules/Fondations/F03-tags?ref=3f0af3e100a45dcb2e06b44657cb71efee99ca8f"
 
   environment         = local.f03_environment
   owner               = var.owner
