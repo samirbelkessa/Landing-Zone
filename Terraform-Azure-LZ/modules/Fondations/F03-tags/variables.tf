@@ -109,11 +109,6 @@ variable "compliance" {
   description = "Compliance frameworks applicable to the resource (comma-separated)."
   type        = string
   default     = null
-
-  validation {
-    condition     = var.compliance == null || length(var.compliance) <= 100
-    error_message = "Compliance string must not exceed 100 characters."
-  }
 }
 
 variable "maintenance_window" {
@@ -155,10 +150,6 @@ variable "archetype" {
   type        = string
   default     = null
 
-  validation {
-    condition     = var.archetype == null || contains(["Online-Prod", "Online-NonProd", "Corp-Prod", "Corp-NonProd", "Sandbox"], var.archetype)
-    error_message = "Archetype must be one of: Online-Prod, Online-NonProd, Corp-Prod, Corp-NonProd, Sandbox."
-  }
 }
 
 variable "enforce_sandbox_expiration" {
