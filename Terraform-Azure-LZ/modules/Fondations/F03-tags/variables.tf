@@ -111,7 +111,7 @@ variable "compliance" {
   default     = null
 
   validation {
-    condition     = var.compliance == null || length(var.compliance) <= 100
+    condition     = var.compliance == null || length(coalesce(var.compliance, "")) <= 100
     error_message = "Compliance string must not exceed 100 characters."
   }
 }
@@ -156,7 +156,7 @@ variable "archetype" {
   default     = null
 
   validation {
-    condition     = var.archetype == null || contains(["Online-Prod", "Online-NonProd", "Corp-Prod", "Corp-NonProd", "Sandbox"], var.archetype)
+    condition     = var.archetype == null || contains(["Online-Prod", "Online-NonProd", "Corp-Prod", "Corp-NonProd", "Sandbox"], coalesce(var.archetype, "Online-Prod"))
     error_message = "Archetype must be one of: Online-Prod, Online-NonProd, Corp-Prod, Corp-NonProd, Sandbox."
   }
 }
