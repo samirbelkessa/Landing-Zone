@@ -1,12 +1,12 @@
 # =============================================================================
 # VARIABLES.TF - Input Variables
 # =============================================================================
-# Orchestrator: 07-security
-# Purpose: Define all input variables for Security deployment
+# Orchestrator: 007-security
+# Purpose: Security components deployment (Defender, Sentinel, Key Vault, NSG)
 # =============================================================================
 
 # =============================================================================
-# REQUIRED - AUTHENTICATION
+# SUBSCRIPTION CONFIGURATION
 # =============================================================================
 
 variable "tenant_id" {
@@ -14,126 +14,129 @@ variable "tenant_id" {
   type        = string
 
   validation {
-    condition     = can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.tenant_id))
-    error_message = "Tenant ID must be a valid GUID."
+    condition     = can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.tenant_id))
+    error_message = "Must be a valid GUID."
   }
 }
 
-variable "terraform_state_subscription_id" {
-  description = "Subscription ID where Terraform state is stored."
-  type        = string
-}
-
 variable "management_subscription_id" {
-  description = "Management subscription ID (for Key Vault, Sentinel)."
+  description = "Subscription ID for Management resources."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.management_subscription_id))
+    error_message = "Must be a valid GUID."
+  }
 }
 
 variable "connectivity_subscription_id" {
-  description = "Connectivity subscription ID (for Private Endpoints)."
+  description = "Subscription ID for Connectivity resources."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.connectivity_subscription_id))
+    error_message = "Must be a valid GUID."
+  }
 }
 
 variable "identity_subscription_id" {
-  description = "Identity subscription ID."
+  description = "Subscription ID for Identity resources."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.identity_subscription_id))
+    error_message = "Must be a valid GUID."
+  }
 }
 
 # =============================================================================
-# REQUIRED - REMOTE STATE
-# =============================================================================
-
-variable "remote_state_resource_group" {
-  description = "Resource group containing Terraform state storage account."
-  type        = string
-}
-
-variable "remote_state_storage_account" {
-  description = "Storage account name for Terraform state."
-  type        = string
-}
-
-variable "remote_state_container" {
-  description = "Container name for Terraform state."
-  type        = string
-  default     = "tfstate"
-}
-
-# =============================================================================
-# REMOTE STATE OUTPUT MAPPING
-# =============================================================================
-# Maps local variable names to actual output names in remote states.
-# This avoids hardcoding and allows flexibility across different deployments.
-
-variable "remote_state_outputs" {
-  description = "Mapping of remote state output names for cross-orchestrator references."
-  type = object({
-    # From 03-management
-    management = optional(object({
-      log_analytics_workspace_id   = optional(string, "m01_log_analytics_id")
-      log_analytics_workspace_guid = optional(string, "m01_log_analytics_workspace_id")
-      log_analytics_workspace_name = optional(string, "m01_log_analytics_name")
-      resource_group_name          = optional(string, "resource_group_name")
-    }), {})
-    # From 04-connectivity
-    connectivity = optional(object({
-      hub_vnet_id            = optional(string, "hub_vnet_id")
-      hub_subnet_ids         = optional(string, "hub_subnet_ids")
-      hub_resource_group_name = optional(string, "hub_resource_group_name")
-      private_dns_zone_ids   = optional(string, "private_dns_zone_ids")
-    }), {})
-  })
-  default = {}
-}
-
-# =============================================================================
-# REQUIRED - COMMON
+# LOCATION CONFIGURATION
 # =============================================================================
 
 variable "location" {
-  description = "Azure region for Security resources."
+  description = "Primary Azure region for deployment."
   type        = string
   default     = "australiaeast"
 }
 
+variable "location_secondary" {
+  description = "Secondary Azure region for DR."
+  type        = string
+  default     = "australiasoutheast"
+}
+
+# =============================================================================
+# NAMING CONFIGURATION
+# =============================================================================
+
+variable "organization" {
+  description = "Organization name for resource naming."
+  type        = string
+  default     = "intelly"
+}
+
 variable "environment" {
-  description = "Environment name."
+  description = "Environment name (prod, nonprod, dev, test, sandbox)."
   type        = string
   default     = "prod"
+
+  validation {
+    condition     = contains(["prod", "nonprod", "dev", "test", "sandbox"], var.environment)
+    error_message = "Environment must be one of: prod, nonprod, dev, test, sandbox."
+  }
 }
 
 # =============================================================================
-# REQUIRED - TAGS
+# REMOTE STATE CONFIGURATION
 # =============================================================================
 
-variable "owner" {
-  description = "Owner email for tagging."
-  type        = string
+variable "remote_state_config" {
+  description = "Configuration for reading remote state from other orchestrators."
+  type = object({
+    resource_group_name  = string
+    storage_account_name = string
+    container_name       = string
+  })
 }
 
-variable "cost_center" {
-  description = "Cost center for tagging."
-  type        = string
-}
-
-variable "application" {
-  description = "Application name for tagging."
-  type        = string
-  default     = "Platform Security"
-}
-
-variable "tags" {
-  description = "Additional tags to apply to all resources."
-  type        = map(string)
-  default     = {}
+variable "remote_state_outputs" {
+  description = "Mapping of remote state output keys."
+  type = object({
+    management = object({
+      log_analytics_workspace_id   = optional(string, "log_analytics_workspace_id")
+      log_analytics_workspace_name = optional(string, "log_analytics_workspace_name")
+      log_analytics_workspace_guid = optional(string, "log_analytics_workspace_guid")
+      resource_group_name          = optional(string, "resource_group_name")
+    })
+    connectivity = object({
+      hub_vnet_id             = optional(string, "hub_vnet_id")
+      hub_resource_group_name = optional(string, "hub_resource_group_name")
+      hub_subnet_ids          = optional(string, "hub_subnet_ids")
+      private_dns_zone_ids    = optional(string, "private_dns_zone_ids")
+    })
+  })
+  default = {
+    management = {
+      log_analytics_workspace_id   = "log_analytics_workspace_id"
+      log_analytics_workspace_name = "log_analytics_workspace_name"
+      log_analytics_workspace_guid = "log_analytics_workspace_guid"
+      resource_group_name          = "resource_group_name"
+    }
+    connectivity = {
+      hub_vnet_id             = "hub_vnet_id"
+      hub_resource_group_name = "hub_resource_group_name"
+      hub_subnet_ids          = "hub_subnet_ids"
+      private_dns_zone_ids    = "private_dns_zone_ids"
+    }
+  }
 }
 
 # =============================================================================
-# MODULE FLAGS
+# FEATURE FLAGS
 # =============================================================================
 
 variable "deploy_resource_group" {
-  description = "Deploy security resource group."
+  description = "Deploy dedicated security resource group."
   type        = bool
   default     = true
 }
@@ -156,12 +159,18 @@ variable "deploy_defender" {
   default     = true
 }
 
+variable "deploy_nsg_baseline" {
+  description = "Deploy baseline NSG for shared services."
+  type        = bool
+  default     = true
+}
+
 # =============================================================================
 # KEY VAULT CONFIGURATION
 # =============================================================================
 
 variable "key_vault_name" {
-  description = "Name for the platform Key Vault. If null, will be auto-generated."
+  description = "Name for the platform Key Vault. If null, auto-generated."
   type        = string
   default     = null
 }
@@ -173,7 +182,7 @@ variable "key_vault_sku" {
 
   validation {
     condition     = contains(["standard", "premium"], var.key_vault_sku)
-    error_message = "Key Vault SKU must be 'standard' or 'premium'."
+    error_message = "Must be standard or premium."
   }
 }
 
@@ -202,87 +211,20 @@ variable "key_vault_public_network_access" {
 }
 
 variable "private_endpoint_subnet_key" {
-  description = "Key name of the subnet in hub_subnet_ids map for Private Endpoints."
+  description = "Key name of subnet in hub_subnet_ids for Private Endpoints."
   type        = string
   default     = "SharedServicesSubnet"
 }
 
 variable "keyvault_dns_zone_key" {
-  description = "Key name of the Key Vault Private DNS zone in private_dns_zone_ids map."
+  description = "Key name of Key Vault Private DNS zone."
   type        = string
   default     = "privatelink.vaultcore.azure.net"
 }
 
-variable "private_endpoint_resource_group" {
-  description = "Resource group for Private Endpoint. If null, uses hub_resource_group_name from remote state."
-  type        = string
-  default     = null
-}
-
 # =============================================================================
-# SENTINEL CONFIGURATION
+# DEFENDER CONFIGURATION
 # =============================================================================
-
-variable "sentinel_data_connectors" {
-  description = <<-EOT
-    Sentinel data connectors to enable.
-    
-    IMPORTANT: azure_active_directory requires Azure AD Premium P1/P2 or Microsoft 365 E5 license.
-    Without the appropriate license, enabling this connector will fail with 'InvalidLicense' error.
-  EOT
-  type = object({
-    azure_active_directory = optional(bool, false)  # Requires Entra ID P1/P2 license
-    azure_activity         = optional(bool, true)   # Free - Azure Activity logs
-    defender_for_cloud     = optional(bool, true)   # Included with Defender plans
-    threat_intelligence    = optional(bool, true)   # Free - TI indicators
-  })
-  default = {}
-}
-
-# =============================================================================
-# DEFENDER FOR CLOUD CONFIGURATION
-# =============================================================================
-
-variable "defender_plans" {
-  description = "Defender for Cloud plans to enable."
-  type = object({
-    virtual_machines = optional(object({
-      enabled = optional(bool, true)
-      subplan = optional(string, "P2")
-    }), {})
-    storage_accounts = optional(object({
-      enabled = optional(bool, true)
-      subplan = optional(string, "DefenderForStorageV2")
-    }), {})
-    sql_servers = optional(object({
-      enabled = optional(bool, true)
-    }), {})
-    app_services = optional(object({
-      enabled = optional(bool, true)
-    }), {})
-    key_vaults = optional(object({
-      enabled = optional(bool, true)
-      subplan = optional(string, "PerKeyVault")
-    }), {})
-    arm = optional(object({
-      enabled = optional(bool, true)
-      subplan = optional(string, "PerSubscription")
-    }), {})
-    containers = optional(object({
-      enabled = optional(bool, true)
-    }), {})
-    dns = optional(object({
-      enabled = optional(bool, true)
-    }), {})
-  })
-  default = {}
-}
-
-variable "defender_subscriptions" {
-  description = "List of subscription IDs to enable Defender on. If empty, uses platform subscriptions."
-  type        = list(string)
-  default     = []
-}
 
 variable "security_contact_email" {
   description = "Email address for security alerts."
@@ -290,19 +232,146 @@ variable "security_contact_email" {
 }
 
 variable "security_contact_phone" {
-  description = "Phone number for security alerts (optional)."
+  description = "Phone number for security alerts."
   type        = string
   default     = null
 }
 
-variable "security_alert_notifications" {
-  description = "Enable email notifications for security alerts."
+variable "defender_plans" {
+  description = "Map of Defender plans to enable."
+  type = map(object({
+    enabled = bool
+    subplan = optional(string, null)
+  }))
+  default = {
+    VirtualMachines = {
+      enabled = true
+      subplan = "P2"
+    }
+    StorageAccounts = {
+      enabled = true
+      subplan = "DefenderForStorageV2"
+    }
+    SqlServers = {
+      enabled = true
+      subplan = null
+    }
+    SqlServerVirtualMachines = {
+      enabled = true
+      subplan = null
+    }
+    AppServices = {
+      enabled = true
+      subplan = null
+    }
+    KeyVaults = {
+      enabled = true
+      subplan = null
+    }
+    Arm = {
+      enabled = true
+      subplan = "PerApiCall"
+    }
+    Dns = {
+      enabled = true
+      subplan = null
+    }
+    Containers = {
+      enabled = true
+      subplan = null
+    }
+    OpenSourceRelationalDatabases = {
+      enabled = false
+      subplan = null
+    }
+    CosmosDbs = {
+      enabled = false
+      subplan = null
+    }
+    CloudPosture = {
+      enabled = true
+      subplan = null
+    }
+  }
+}
+
+# =============================================================================
+# SENTINEL CONFIGURATION
+# =============================================================================
+
+variable "sentinel_data_connectors" {
+  description = "Sentinel data connectors to enable."
+  type = object({
+    azure_active_directory       = optional(bool, false)
+    azure_activity               = optional(bool, true)
+    defender_for_cloud           = optional(bool, true)
+    threat_intelligence          = optional(bool, true)
+    microsoft_cloud_app_security = optional(bool, false)
+    office_365                   = optional(bool, false)
+    microsoft_365_defender       = optional(bool, false)
+    azure_advanced_threat_protection = optional(bool, false)
+  })
+  default = {
+    azure_active_directory       = false
+    azure_activity               = true
+    defender_for_cloud           = true
+    threat_intelligence          = true
+    microsoft_cloud_app_security = false
+    office_365                   = false
+    microsoft_365_defender       = false
+    azure_advanced_threat_protection = false
+  }
+}
+
+# =============================================================================
+# NSG CONFIGURATION
+# =============================================================================
+
+variable "enable_nsg_baseline_rules" {
+  description = "Enable baseline NSG rules from standard ruleset."
   type        = bool
   default     = true
 }
 
-variable "security_alerts_to_admins" {
-  description = "Send security alerts to subscription admins."
-  type        = bool
-  default     = true
+variable "custom_nsg_rules" {
+  description = "Additional custom NSG rules to merge with baseline."
+  type = map(object({
+    access                                     = string
+    direction                                  = string
+    priority                                   = number
+    protocol                                   = string
+    name                                       = string
+    description                                = optional(string)
+    source_address_prefix                      = optional(string)
+    source_address_prefixes                    = optional(set(string))
+    source_port_range                          = optional(string)
+    source_port_ranges                         = optional(set(string))
+    destination_address_prefix                 = optional(string)
+    destination_address_prefixes               = optional(set(string))
+    destination_port_range                     = optional(string)
+    destination_port_ranges                    = optional(set(string))
+    source_application_security_group_ids      = optional(set(string))
+    destination_application_security_group_ids = optional(set(string))
+  }))
+  default = {}
+}
+
+# =============================================================================
+# TAGS
+# =============================================================================
+
+variable "tags" {
+  description = "Tags to apply to all resources."
+  type        = map(string)
+  default     = {}
+}
+
+variable "owner" {
+  description = "Owner email for resource tagging."
+  type        = string
+}
+
+variable "cost_center" {
+  description = "Cost center for resource tagging."
+  type        = string
 }

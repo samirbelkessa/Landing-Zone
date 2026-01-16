@@ -1,0 +1,671 @@
+
+
+
+################################################################################
+# main.tf - Management Layer Orchestrator
+# Module Orchestration with F02 and F03 Integration
+################################################################################
+
+#-------------------------------------------------------------------------------
+# F03 Tags for Resource Group
+#-------------------------------------------------------------------------------
+
+module "tags_rg" {
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Fondations/F03-tags?ref=${local.module_ref}"
+
+  environment         = local.f03_environment
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+  module_name         = "orchestrator-management"
+}
+
+#-------------------------------------------------------------------------------
+# Resource Group (Optional Creation)
+#-------------------------------------------------------------------------------
+
+resource "azurerm_resource_group" "management" {
+  count = var.create_resource_group ? 1 : 0
+
+  name     = var.resource_group_name
+  location = local.primary_location
+
+  tags = module.tags_rg.all_tags
+}
+
+################################################################################
+# M01 - Log Analytics Workspace
+# Appelle F02 et F03 EN INTERNE
+################################################################################
+
+module "m01_log_analytics" {
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M01-log-analytics-workspace?ref=${local.module_ref}"
+  count  = var.deploy_m01_log_analytics ? 1 : 0
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming inputs (passés au module qui appelle F02 en interne)
+  #-----------------------------------------------------------------------------
+  workload    = var.project_name
+  environment = var.environment
+  region      = local.primary_region
+  instance    = "001"
+
+  # Custom name override (optional - bypasses F02)
+  custom_name = var.log_analytics_custom_name
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+  location            = local.rg_location
+
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs (passés au module qui appelle F03 en interne)
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # M01 specific configuration
+  #-----------------------------------------------------------------------------
+  retention_in_days       = var.log_analytics_retention_days
+  total_retention_in_days = var.log_analytics_total_retention_days
+  sku                     = var.log_analytics_sku
+
+  # Archive configuration per table
+  enable_table_level_archive = true
+  archive_tables = {
+    "SecurityEvent" = 400
+    "SigninLogs"    = 400
+    "AuditLogs"     = 400
+    "AzureActivity" = 400
+    "Syslog"        = 400
+    "Perf"          = 180
+    "AzureMetrics"  = 180
+  }
+
+  # Solutions
+  deploy_solutions = true
+  solutions = [
+    { name = "SecurityInsights", publisher = "Microsoft" },
+    { name = "AzureActivity", publisher = "Microsoft" },
+    { name = "ChangeTracking", publisher = "Microsoft" },
+    { name = "Updates", publisher = "Microsoft" },
+    { name = "VMInsights", publisher = "Microsoft" },
+    { name = "ServiceMap", publisher = "Microsoft" },
+    { name = "AgentHealthAssessment", publisher = "Microsoft" },
+  ]
+
+  # DR Configuration
+  enable_cross_region_workspace = var.enable_log_analytics_dr
+  secondary_location            = local.secondary_location
+  secondary_retention_in_days   = 30
+   
+  # Diagnostic Settings
+  enable_diagnostic_settings    = var.deploy_m08_diagnostics_storage && var.enable_m01_archive_to_storage
+  diagnostic_storage_account_id = var.deploy_m08_diagnostics_storage ? module.m08_diagnostics_storage[0].id : null
+
+  depends_on = [
+    azurerm_resource_group.management,
+    module.m08_diagnostics_storage
+  ]
+}
+
+################################################################################
+# M02 - Automation Account
+# Appelle F02 et F03 EN INTERNE
+################################################################################
+
+module "m02_automation_account" {
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M02-automation-account?ref=${local.module_ref}"
+  count  = local.m02_can_deploy ? 1 : 0
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming inputs (passés au module qui appelle F02 en interne)
+  #-----------------------------------------------------------------------------
+  workload    = var.project_name
+  environment = var.environment
+  region      = local.primary_region
+  instance    = "001"
+
+  # Custom name override (optional - bypasses F02)
+  custom_name = var.automation_custom_name
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+  location            = local.rg_location
+
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs (passés au module qui appelle F03 en interne)
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # M02 specific configuration
+  #-----------------------------------------------------------------------------
+
+  # Link to M01 Log Analytics
+  log_analytics_workspace_id = module.m01_log_analytics[0].id
+  create_la_linked_service   = true
+
+  # Security settings
+  public_network_access_enabled = var.automation_public_access
+  local_authentication_enabled  = true
+  identity_type                 = "SystemAssigned"
+
+  # Runbooks
+  runbooks = local.default_runbooks
+
+  # Schedules
+  schedules = local.default_schedules
+
+  # Diagnostic settings
+  enable_diagnostic_settings = false
+
+  depends_on = [module.m01_log_analytics]
+}
+
+################################################################################
+# M03 - Monitor Action Groups
+# À ajouter dans orchestrator-lza-mng/main.tf après le module M02
+# Appelle F02 et F03 EN INTERNE
+################################################################################
+
+module "m03_action_groups" {
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M03-monitor-action-groups?ref=${local.module_ref}"
+  count  = local.m03_can_deploy ? 1 : 0
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming inputs (passés au module qui appelle F02 en interne)
+  #-----------------------------------------------------------------------------
+  workload    = var.project_name
+  environment = var.environment
+  region      = local.primary_region
+  instance    = "001"
+
+  # Custom name override (optional - bypasses F02)
+  custom_name = var.action_groups_custom_name
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs (passés au module qui appelle F03 en interne)
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # M03 specific configuration
+  #-----------------------------------------------------------------------------
+
+  # Default action groups (Critical, Warning, Info)
+  create_default_action_groups = var.create_default_action_groups
+  default_email_receivers      = var.default_email_receivers
+  default_webhook_url          = var.default_webhook_url
+
+  # Custom action groups
+  action_groups = var.custom_action_groups
+
+  depends_on = [azurerm_resource_group.management]
+}
+
+################################################################################
+# M04 - Monitor Alerts
+# À ajouter dans orchestrator-lza-mng/main.tf après le module M03
+# Appelle F02 et F03 EN INTERNE (même pattern que M01/M02/M03)
+################################################################################
+
+module "m04_monitor_alerts" {
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M04-monitor-alerts?ref=${local.module_ref}"
+  count  = local.m04_can_deploy ? 1 : 0
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming Convention Inputs (passés au module, F02 appelé en interne)
+  #-----------------------------------------------------------------------------
+  workload           = var.project_name
+  environment        = var.environment
+  region             = local.location_abbrev[local.primary_location]
+  instance           = "001"
+  custom_name_prefix = var.alerts_custom_name_prefix
+
+  #-----------------------------------------------------------------------------
+  # F03 Tags Inputs (passés au module, F03 appelé en interne)
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+  additional_tags     = {}
+
+  #-----------------------------------------------------------------------------
+  # Azure Resources
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+
+  # Log Analytics Workspace from M01 (for log query alerts)
+  log_analytics_workspace_id = module.m01_log_analytics[0].id
+
+  #-----------------------------------------------------------------------------
+  # Action Groups from M03 (automatic severity mapping)
+  #-----------------------------------------------------------------------------
+  action_group_ids = module.m03_action_groups[0].outputs_for_m04.action_group_ids
+
+  #-----------------------------------------------------------------------------
+  # Scope Configuration (dynamic - from current subscription)
+  #-----------------------------------------------------------------------------
+  # Uses current subscription by default, override with subscription_ids if needed
+  subscription_ids = []  # Empty = uses current subscription from provider
+
+  #-----------------------------------------------------------------------------
+  # Default Alerts Configuration
+  #-----------------------------------------------------------------------------
+  create_default_alerts = var.create_default_alerts
+
+  service_health_alert_config    = var.service_health_alert_config
+  resource_health_alert_config   = var.resource_health_alert_config
+  activity_log_admin_alert_config   = var.activity_log_admin_alert_config
+  activity_log_security_alert_config = var.activity_log_security_alert_config
+
+  #-----------------------------------------------------------------------------
+  # Custom Alerts
+  #-----------------------------------------------------------------------------
+  custom_activity_log_alerts = var.custom_activity_log_alerts
+  custom_metric_alerts       = var.custom_metric_alerts
+  custom_log_query_alerts    = var.custom_log_query_alerts
+
+  #-----------------------------------------------------------------------------
+  # Severity Mapping
+  #-----------------------------------------------------------------------------
+  severity_action_group_mapping = var.severity_action_group_mapping
+
+  #-----------------------------------------------------------------------------
+  # Dependencies
+  #-----------------------------------------------------------------------------
+  depends_on = [
+    module.m01_log_analytics,
+    module.m03_action_groups
+  ]
+}
+# M05 - Diagnostic Settings (generic module)
+# Diagnostic settings for Log Analytics Workspace
+# ============================================================================
+# DIAGNOSTIC SETTINGS (M05)
+# ============================================================================
+
+# Diagnostic settings for Log Analytics Workspace
+module "law_diagnostics" {
+  count  = var.enable_diagnostic_settings && var.diagnostic_settings_config != null ? 1 : 0
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M05-diagnostic-settings?ref=${local.module_ref}"
+
+  target_resource_id         = module.m01_log_analytics[0].id
+  name                       = "diag-${module.m01_log_analytics[0].name}"
+  log_analytics_workspace_id = module.m01_log_analytics[0].id
+  #storage_account_id         = var.diagnostic_settings_config.storage_account_id
+  storage_account_id = var.deploy_m08_diagnostics_storage ? module.m08_diagnostics_storage[0].id : var.diagnostic_settings_config.storage_account_id 
+  log_analytics_destination_type = var.diagnostic_settings_config.log_analytics_destination_type
+  logs_retention_days            = var.diagnostic_settings_config.logs_retention_days
+  metrics_retention_days         = var.diagnostic_settings_config.metrics_retention_days
+
+  # Utilisation des tags exposés par M01
+  tags = module.m01_log_analytics[0].tags
+
+  depends_on = [
+    module.m01_log_analytics,
+    module.m08_diagnostics_storage
+  ]
+}
+
+# Diagnostic settings for Automation Account
+module "automation_diagnostics" {
+  count  = var.enable_diagnostic_settings && var.diagnostic_settings_config != null ? 1 : 0
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M05-diagnostic-settings?ref=${local.module_ref}"
+
+  target_resource_id         = module.m02_automation_account[0].id
+  name                       = "diag-${module.m02_automation_account[0].name}"
+  log_analytics_workspace_id = module.m01_log_analytics[0].id
+  storage_account_id         = var.diagnostic_settings_config.storage_account_id
+
+  log_analytics_destination_type = var.diagnostic_settings_config.log_analytics_destination_type
+  logs_retention_days            = var.diagnostic_settings_config.logs_retention_days
+  metrics_retention_days         = var.diagnostic_settings_config.metrics_retention_days
+
+  # Utilisation des tags exposés par M02
+  tags = module.m02_automation_account[0].tags
+
+  depends_on = [module.m02_automation_account]
+}
+
+
+################################################################################
+# M06 - UPDATE MANAGEMENT (AZURE UPDATE MANAGER)
+################################################################################
+
+module "m06_update_management" {
+  count  = var.deploy_m06_update_management ? 1 : 0
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M06-update-management?ref=${local.module_ref}"
+
+  #-----------------------------------------------------------------------------
+  # F02 Naming Convention inputs
+  #-----------------------------------------------------------------------------
+  workload    = var.project_name
+  environment = var.environment
+  region      = local.primary_region
+  instance    = var.instance
+
+  # Optional: Custom name override (bypasses F02)
+  custom_name_prefix = var.update_management_custom_name_prefix
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+  location            = local.primary_location
+
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # Maintenance Configurations
+  #-----------------------------------------------------------------------------
+  maintenance_configurations    = var.maintenance_configurations
+  create_default_windows_config = var.create_default_windows_config
+  create_default_linux_config   = var.create_default_linux_config
+
+  #-----------------------------------------------------------------------------
+  # VM Assignments
+  #-----------------------------------------------------------------------------
+  vm_assignments            = var.vm_assignments
+  dynamic_scope_assignments = var.dynamic_scope_assignments
+
+  #-----------------------------------------------------------------------------
+  # Default Settings
+  #-----------------------------------------------------------------------------
+  default_timezone         = var.default_timezone
+  default_target_locations = var.update_target_locations
+
+  #-----------------------------------------------------------------------------
+  # Module Integration (Optional)
+  #-----------------------------------------------------------------------------
+  log_analytics_workspace_id = var.deploy_m01_log_analytics ? module.m01_log_analytics[0].id : null
+  
+  action_group_ids = var.deploy_m03_action_groups ? {
+    critical = module.m03_action_groups[0].action_group_ids["critical"]
+    warning  = module.m03_action_groups[0].action_group_ids["warning"]
+    info     = module.m03_action_groups[0].action_group_ids["info"]
+  } : {}
+
+  additional_tags = var.update_management_additional_tags
+
+  #-----------------------------------------------------------------------------
+  # Dependencies
+  #-----------------------------------------------------------------------------
+  depends_on = [
+    azurerm_resource_group.management,
+    module.m01_log_analytics,
+    module.m03_action_groups
+  ]
+}
+
+################################################################################
+# M07 - DATA COLLECTION RULES
+################################################################################
+
+module "m07_data_collection_rules" {
+  count  = var.deploy_m07_dcr ? 1 : 0
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M07-data-collection-rules?ref=${local.module_ref}"
+  #-----------------------------------------------------------------------------
+  # DCR Configurations
+  #-----------------------------------------------------------------------------
+  
+  # Use the 10 recommended DCRs + any custom configurations
+  data_collection_rules = local.all_dcr_configurations
+  
+  #-----------------------------------------------------------------------------
+  # Associations (disabled by default - use Azure Policy G03)
+  #-----------------------------------------------------------------------------
+  
+  enable_associations = var.enable_dcr_associations
+  
+  # Manual associations only for brownfield scenarios
+  data_collection_rule_associations = var.enable_dcr_associations ? {} : {}
+  
+  #-----------------------------------------------------------------------------
+  # Tags (inherited from M01)
+  #-----------------------------------------------------------------------------
+  
+  tags = local.dcr_tags
+  
+  #-----------------------------------------------------------------------------
+  # Dependencies
+  #-----------------------------------------------------------------------------
+  
+  depends_on = [
+    azurerm_resource_group.management,
+    module.m01_log_analytics
+  ]
+}
+
+
+
+
+################################################################################
+# Placeholder for future modules (M08)
+################################################################################
+################################################################################
+# M08 - DIAGNOSTICS STORAGE ACCOUNT
+################################################################################
+
+module "m08_diagnostics_storage" {
+  count  = local.m08_can_deploy ? 1 : 0
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M08-diagnostics-storage-account?ref=${local.module_ref}"
+  #-----------------------------------------------------------------------------
+  # F02 Naming Convention inputs
+  #-----------------------------------------------------------------------------
+  workload    = var.project_name
+  environment = var.environment
+  region      = local.primary_region
+  instance    = var.instance
+
+  # Optional: Custom name override (bypasses F02)
+  custom_name = var.diagnostics_storage_custom_name
+
+  #-----------------------------------------------------------------------------
+  # Resource placement
+  #-----------------------------------------------------------------------------
+  resource_group_name = local.rg_name
+  location            = local.primary_location
+
+  #-----------------------------------------------------------------------------
+  # F03 Tagging inputs
+  #-----------------------------------------------------------------------------
+  owner               = var.owner
+  cost_center         = var.cost_center
+  application         = var.application
+  criticality         = var.criticality
+  data_classification = var.data_classification
+  project             = var.project
+  department          = var.department
+
+  #-----------------------------------------------------------------------------
+  # Storage Account Configuration
+  #-----------------------------------------------------------------------------
+  account_tier     = var.diagnostics_storage_account_tier
+  replication_type = var.diagnostics_storage_replication_type
+  account_kind     = var.diagnostics_storage_account_kind
+  access_tier      = var.diagnostics_storage_access_tier
+  min_tls_version  = var.diagnostics_storage_min_tls_version
+
+  #-----------------------------------------------------------------------------
+  # Security Configuration
+  #-----------------------------------------------------------------------------
+  https_traffic_only_enabled        = true
+  allow_nested_items_to_be_public   = false
+  shared_access_key_enabled         = var.diagnostics_storage_shared_access_key_enabled
+  public_network_access_enabled     = var.diagnostics_storage_public_network_access
+  default_to_oauth_authentication   = true
+  infrastructure_encryption_enabled = var.diagnostics_storage_infrastructure_encryption
+
+  #-----------------------------------------------------------------------------
+  # Network Rules (Optional)
+  #-----------------------------------------------------------------------------
+  network_rules = var.diagnostics_storage_network_rules
+
+  #-----------------------------------------------------------------------------
+  # Blob Properties
+  #-----------------------------------------------------------------------------
+  blob_soft_delete_retention_days      = var.diagnostics_storage_blob_retention_days
+  container_soft_delete_retention_days = var.diagnostics_storage_container_retention_days
+  enable_versioning                    = var.diagnostics_storage_versioning_enabled
+  enable_change_feed                   = var.diagnostics_storage_change_feed_enabled
+  change_feed_retention_in_days        = var.diagnostics_storage_change_feed_retention_days
+
+  #-----------------------------------------------------------------------------
+  # Containers Configuration
+  #-----------------------------------------------------------------------------
+  create_default_containers   = var.diagnostics_storage_create_default_containers
+  additional_containers       = var.diagnostics_storage_additional_containers
+  default_container_access_type = "private"
+
+  #-----------------------------------------------------------------------------
+  # Lifecycle Management
+  #-----------------------------------------------------------------------------
+  enable_lifecycle_management          = var.diagnostics_storage_enable_lifecycle
+  lifecycle_rules                      = var.diagnostics_storage_lifecycle_rules
+  default_lifecycle_tier_to_cool_days    = var.diagnostics_storage_tier_to_cool_days
+  default_lifecycle_tier_to_archive_days = var.diagnostics_storage_tier_to_archive_days
+  default_lifecycle_delete_days          = var.diagnostics_storage_delete_days
+
+  #-----------------------------------------------------------------------------
+  # Diagnostic Settings (send to M01)
+  #-----------------------------------------------------------------------------
+  enable_diagnostic_settings   = false
+  log_analytics_workspace_id   = null
+  diagnostic_logs_retention_days = 90
+
+  #-----------------------------------------------------------------------------
+  # Additional Tags
+  #-----------------------------------------------------------------------------
+  additional_tags = var.diagnostics_storage_additional_tags
+
+  #-----------------------------------------------------------------------------
+  # Dependencies
+  #-----------------------------------------------------------------------------
+  depends_on = [
+    azurerm_resource_group.management,
+    #module.m01_log_analytics
+  ]
+}
+
+################################################################################
+# M08 SELF-DIAGNOSTICS (Phase 2)
+# Envoie les diagnostics du Storage Account vers M01
+################################################################################
+
+module "m08_self_diagnostics" {
+  count  = local.m08_self_diagnostics_can_deploy ? 1 : 0
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M05-diagnostic-settings?ref=${local.module_ref}"
+  target_resource_id             = module.m08_diagnostics_storage[0].id
+  name                           = "diag-${module.m08_diagnostics_storage[0].name}"
+  log_analytics_workspace_id     = module.m01_log_analytics[0].id
+  log_analytics_destination_type = "Dedicated"
+
+  enabled_log_categories    = null
+  enabled_metric_categories = ["Transaction", "Capacity"]
+  logs_retention_days       = 90
+  metrics_retention_days    = 90
+
+  tags = module.m08_diagnostics_storage[0].tags
+
+  depends_on = [
+    module.m01_log_analytics,
+    module.m08_diagnostics_storage
+  ]
+}
+
+################################################################################
+# M08 BLOB SERVICE DIAGNOSTICS (Phase 2)
+################################################################################
+
+module "m08_blob_diagnostics" {
+  count  = local.m08_self_diagnostics_can_deploy ? 1 : 0
+  source = "${local.module_repo}//Terraform-Azure-LZ/modules/Management/M05-diagnostic-settings?ref=${local.module_ref}"
+  target_resource_id             = "${module.m08_diagnostics_storage[0].id}/blobServices/default"
+  name                           = "diag-${module.m08_diagnostics_storage[0].name}-blob"
+  log_analytics_workspace_id     = module.m01_log_analytics[0].id
+  log_analytics_destination_type = "Dedicated"
+
+  enabled_log_categories    = ["StorageRead", "StorageWrite", "StorageDelete"]
+  enabled_metric_categories = ["Transaction", "Capacity"]
+  logs_retention_days       = 90
+  metrics_retention_days    = 90
+
+  tags = module.m08_diagnostics_storage[0].tags
+
+  depends_on = [
+    module.m01_log_analytics,
+    module.m08_diagnostics_storage
+  ]
+}
+
+resource "azurerm_log_analytics_linked_storage_account" "custom_logs" {
+  count = local.link_storage_to_la ? 1 : 0
+
+  data_source_type      = "CustomLogs"
+  resource_group_name   = local.rg_name
+  workspace_resource_id = module.m01_log_analytics[0].id
+  storage_account_ids   = [module.m08_diagnostics_storage[0].id]
+}
+
+resource "azurerm_log_analytics_linked_storage_account" "query" {
+  count = local.link_storage_to_la ? 1 : 0
+
+  data_source_type      = "Query"
+  resource_group_name   = local.rg_name
+  workspace_resource_id = module.m01_log_analytics[0].id
+  storage_account_ids   = [module.m08_diagnostics_storage[0].id]
+}
+
+resource "azurerm_log_analytics_linked_storage_account" "alerts" {
+  count = local.link_storage_to_la ? 1 : 0
+
+  data_source_type      = "Alerts"
+  resource_group_name   = local.rg_name
+  workspace_resource_id = module.m01_log_analytics[0].id
+  storage_account_ids   = [module.m08_diagnostics_storage[0].id]
+}

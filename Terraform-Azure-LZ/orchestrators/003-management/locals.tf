@@ -128,7 +128,7 @@ locals {
   default_schedules = var.deploy_default_schedules ? tomap({
     "weekday-start-7am-aest" = {
       description = "Start VMs at 7 AM AEST weekdays"
-      start_time  = "2026-01-15T07:00:00+10:00"
+      start_time  = "2026-01-19T07:00:00+10:00"
       frequency   = "Week"
       interval    = 1
       timezone    = "Australia/Sydney"
@@ -138,8 +138,9 @@ locals {
     }
     "weekday-stop-7pm-aest" = {
       description = "Stop VMs at 7 PM AEST weekdays"
-      start_time  = "2026-01-15T19:00:00+10:00"
+      start_time  = "2026-01-19T19:00:00+10:00"
       frequency   = "Week"
+
       interval    = 1
       timezone    = "Australia/Sydney"
       week_days   = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
