@@ -205,7 +205,7 @@ data "azurerm_client_config" "hub" {
 }
 
 module "spoke" {
-  source = "git::https://github.com/Experteq-MSP/terraform-modules//L02-Spoke?ref=main"
+  source = "git::https://github.com/samirbelkessa/Landing-Zone//Terraform-Azure-LZ/modules/L02-Spoke?ref=main"
 
 
   workload                         = var.client_prefix
