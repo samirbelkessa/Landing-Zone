@@ -53,12 +53,12 @@ output "nsg_names" {
 
 output "peering_hub_to_spoke_id" {
   description = "Hub → Spoke peering resource ID."
-  value       = azurerm_virtual_network_peering.hub_to_spoke.id
+  value       = try(azurerm_virtual_network_peering.hub_to_spoke[0].id, null)
 }
 
 output "peering_spoke_to_hub_id" {
   description = "Spoke → Hub peering resource ID."
-  value       = azurerm_virtual_network_peering.spoke_to_hub.id
+  value       = try(azurerm_virtual_network_peering.spoke_to_hub[0].id, null)
 }
 
 output "resource_group_id" {
