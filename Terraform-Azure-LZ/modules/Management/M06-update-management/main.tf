@@ -18,6 +18,7 @@ resource "azurerm_maintenance_configuration" "this" {
 
   lifecycle {
     prevent_destroy = false
+    ignore_changes  = [window[0].start_date_time]
   }
 
   dynamic "install_patches" {
